@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,6 +9,10 @@ datasource db {
   provider = "mysql"
 }
 
+// ============================================================
+// USUARIOS
+// ============================================================
+
 model Usuario {
   id           Int      @id @default(autoincrement())
   nombre       String
@@ -18,5 +20,300 @@ model Usuario {
   passwordHash String   @map("password_hash")
   creadoEn     DateTime @default(now()) @map("creado_en")
 
+  presupuestos         PresupuestoMensual[]
+  gastosFijosConfig    GastoFijoConfig[]
+  categoriasVariables  CategoriaVariable[]
+  metasAhorro          MetaAhorro[]
+  tarjetasCredito      TarjetaCredito[]
+  ajusteTracker        AjusteTracker?
+  diasLibres           DiaLibre[]
+  botonesRapidosConfig BotonRapidoConfig[]
+  alertasConfig        AlertaConfig[]
+
   @@map("usuarios")
+}
+
+// ============================================================
+// PRESUPUESTO MENSUAL (contenedor raíz de cada mes)
+// ============================================================
+
+model PresupuestoMensual {
+  id        Int     @id @default(autoincrement())
+  usuarioId Int     @map("usuario_id")
+  anio      Int     @map("anio")
+  mes       Int
+  notas     String? @db.Text
+
+  usuario        Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ingresos       Ingreso[]
+  ahorros        Ahorro[]
+  transacciones  Transaccion[]
+  trackerDiario  TrackerDiario[]
+  gastosFijosMes GastoFijoMensual[]
+
+  @@unique([usuarioId, anio, mes])
+  @@map("presupuesto_mensual")
+}
+
+// ============================================================
+// GASTOS FIJOS (lista administrable reutilizable)
+// ============================================================
+
+model GastoFijoConfig {
+  id            Int     @id @default(autoincrement())
+  usuarioId     Int     @map("usuario_id")
+  nombre        String
+  montoEstimado Decimal @map("monto_estimado") @db.Decimal(10, 2)
+  activo        Boolean @default(true)
+
+  usuario         Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  gastosMensuales GastoFijoMensual[]
+
+  @@map("gastos_fijos_config")
+}
+
+// Registro del monto real de cada gasto fijo, mes a mes.
+// No estaba en el borrador original: sin esto no había forma de
+// guardar la columna "Real" de Gastos Fijos por mes.
+model GastoFijoMensual {
+  id                Int      @id @default(autoincrement())
+  presupuestoId     Int      @map("presupuesto_id")
+  gastoFijoConfigId Int      @map("gasto_fijo_config_id")
+  montoReal         Decimal? @map("monto_real") @db.Decimal(10, 2)
+
+  presupuesto     PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  gastoFijoConfig GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([presupuestoId, gastoFijoConfigId])
+  @@map("gastos_fijos_mensual")
+}
+
+// ============================================================
+// INGRESOS (por presupuesto mensual)
+// ============================================================
+
+model Ingreso {
+  id            Int       @id @default(autoincrement())
+  presupuestoId Int       @map("presupuesto_id")
+  nombre        String
+  montoEstimado Decimal   @map("monto_estimado") @db.Decimal(10, 2)
+  montoReal     Decimal?  @map("monto_real") @db.Decimal(10, 2)
+  fecha         DateTime? @db.Date
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("ingresos")
+}
+
+// ============================================================
+// CATEGORÍAS VARIABLES (Transporte y Comida son es_default = true)
+// ============================================================
+
+model CategoriaVariable {
+  id        Int     @id @default(autoincrement())
+  usuarioId Int     @map("usuario_id")
+  nombre    String
+  esDefault Boolean @default(false) @map("es_default")
+
+  usuario       Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  transacciones Transaccion[]
+
+  @@map("categorias_variables")
+}
+
+// ============================================================
+// TRANSACCIONES (gastos variables individuales del mes)
+// ============================================================
+
+enum FuenteTransaccion {
+  EFECTIVO
+  TARJETA
+}
+
+model Transaccion {
+  id            Int               @id @default(autoincrement())
+  presupuestoId Int               @map("presupuesto_id")
+  categoriaId   Int               @map("categoria_id")
+  monto         Decimal           @db.Decimal(10, 2)
+  fecha         DateTime          @db.Date
+  notas         String?           @db.Text
+  fuente        FuenteTransaccion @default(EFECTIVO)
+  tarjetaId     Int?              @map("tarjeta_id")
+
+  presupuesto       PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id])
+  tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
+  movimientoTarjeta MovimientoTarjeta?
+
+  @@map("transacciones")
+}
+
+// ============================================================
+// TRACKER DIARIO (Transporte y Comida, día a día)
+// ============================================================
+
+enum ConceptoTracker {
+  PASAJE_IDA
+  DESAYUNO
+  ALMUERZO
+  PASAJE_REGRESO
+}
+
+model TrackerDiario {
+  id            Int             @id @default(autoincrement())
+  presupuestoId Int             @map("presupuesto_id")
+  fecha         DateTime        @db.Date
+  concepto      ConceptoTracker
+  monto         Decimal         @db.Decimal(10, 2)
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("tracker_diario")
+}
+
+// ============================================================
+// AHORROS (por presupuesto mensual)
+// ============================================================
+
+model Ahorro {
+  id            Int      @id @default(autoincrement())
+  presupuestoId Int      @map("presupuesto_id")
+  nombre        String
+  montoEstimado Decimal  @map("monto_estimado") @db.Decimal(10, 2)
+  montoReal     Decimal? @map("monto_real") @db.Decimal(10, 2)
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@map("ahorros")
+}
+
+// ============================================================
+// METAS DE AHORRO
+// ============================================================
+
+model MetaAhorro {
+  id            Int       @id @default(autoincrement())
+  usuarioId     Int       @map("usuario_id")
+  nombre        String
+  montoObjetivo Decimal   @map("monto_objetivo") @db.Decimal(10, 2)
+  montoActual   Decimal   @default(0) @map("monto_actual") @db.Decimal(10, 2)
+  fechaLimite   DateTime? @map("fecha_limite") @db.Date
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("metas_ahorro")
+}
+
+// ============================================================
+// TARJETAS DE CRÉDITO
+// ============================================================
+
+model TarjetaCredito {
+  id          Int     @id @default(autoincrement())
+  usuarioId   Int     @map("usuario_id")
+  nombre      String
+  limite      Decimal @db.Decimal(10, 2)
+  diaCorte    Int     @map("dia_corte")
+  diaPago     Int     @map("dia_pago")
+  saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+
+  usuario       Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  movimientos   MovimientoTarjeta[]
+  transacciones Transaccion[]
+
+  @@map("tarjetas_credito")
+}
+
+model MovimientoTarjeta {
+  id            Int      @id @default(autoincrement())
+  tarjetaId     Int      @map("tarjeta_id")
+  monto         Decimal  @db.Decimal(10, 2)
+  fecha         DateTime @db.Date
+  descripcion   String?
+  transaccionId Int?     @unique @map("transaccion_id")
+
+  tarjeta     TarjetaCredito @relation(fields: [tarjetaId], references: [id], onDelete: Cascade)
+  transaccion Transaccion?   @relation(fields: [transaccionId], references: [id])
+
+  @@map("movimientos_tarjeta")
+}
+
+// ============================================================
+// AJUSTES DEL TRACKER (estimado automático transporte/comida)
+// ============================================================
+
+model AjusteTracker {
+  id        Int @id @default(autoincrement())
+  usuarioId Int @unique @map("usuario_id")
+
+  montoPasajeIda           Decimal @map("monto_pasaje_ida") @db.Decimal(10, 2)
+  montoDesayuno            Decimal @map("monto_desayuno") @db.Decimal(10, 2)
+  montoAlmuerzo            Decimal @map("monto_almuerzo") @db.Decimal(10, 2)
+  montoPasajeRegreso       Decimal @map("monto_pasaje_regreso") @db.Decimal(10, 2)
+  montoPasajeSabadoIda     Decimal @map("monto_pasaje_sabado_ida") @db.Decimal(10, 2)
+  montoDesayunoSabado      Decimal @map("monto_desayuno_sabado") @db.Decimal(10, 2)
+  montoPasajeSabadoRegreso Decimal @map("monto_pasaje_sabado_regreso") @db.Decimal(10, 2)
+
+  patronSabadoInicio      DateTime @map("patron_sabado_inicio") @db.Date
+  patronSabadoPrimerDiaVa Boolean  @map("patron_sabado_primer_dia_va")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("ajustes_tracker")
+}
+
+// ============================================================
+// DÍAS LIBRES (marcados manualmente, se excluyen del estimado)
+// ============================================================
+
+enum MotivoDiaLibre {
+  VACACION
+  ASUETO
+  DESCANSO
+  OTRO
+}
+
+model DiaLibre {
+  id        Int            @id @default(autoincrement())
+  usuarioId Int            @map("usuario_id")
+  fecha     DateTime       @db.Date
+  motivo    MotivoDiaLibre
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, fecha])
+  @@map("dias_libres")
+}
+
+// ============================================================
+// BOTONES RÁPIDOS (montos frecuentes por concepto, tipo cajero)
+// ============================================================
+
+model BotonRapidoConfig {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int      @map("usuario_id")
+  concepto  String
+  monto1    Decimal  @map("monto_1") @db.Decimal(10, 2)
+  monto2    Decimal? @map("monto_2") @db.Decimal(10, 2)
+  monto3    Decimal? @map("monto_3") @db.Decimal(10, 2)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("botones_rapidos_config")
+}
+
+// ============================================================
+// ALERTAS
+// ============================================================
+
+model AlertaConfig {
+  id               Int     @id @default(autoincrement())
+  usuarioId        Int     @map("usuario_id")
+  tipo             String
+  porcentajeAlerta Int?    @map("porcentaje_alerta")
+  activo           Boolean @default(true)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("alertas_config")
 }

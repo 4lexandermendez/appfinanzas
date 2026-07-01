@@ -4,3 +4,13 @@ export async function obtenerGastadoHoy() {
   const { data } = await client.get("/dashboard/hoy");
   return data;
 }
+
+export async function obtenerResumenMes(anio, mes) {
+  const { data } = await client.get("/dashboard/resumen-mes", { params: { anio, mes } });
+  return data;
+}
+
+export async function obtenerResumenAnual(anio) {
+  const { data } = await client.get("/dashboard/resumen-anual", { params: { anio } });
+  return data;
+}

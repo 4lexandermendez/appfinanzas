@@ -9,6 +9,9 @@ const diaLibreRoutes = require("./routes/diaLibreRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
 const botonRapidoRoutes = require("./routes/botonRapidoRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const gastoFijoRoutes = require("./routes/gastoFijoRoutes");
+const ingresoRoutes = require("./routes/ingresoRoutes");
+const ahorroRoutes = require("./routes/ahorroRoutes");
 
 const app = express();
 
@@ -28,6 +31,9 @@ app.use("/api/dias-libres", diaLibreRoutes);
 app.use("/api/tracker", trackerRoutes);
 app.use("/api/botones-rapidos", botonRapidoRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/gastos-fijos", gastoFijoRoutes);
+app.use("/api/ingresos", ingresoRoutes);
+app.use("/api/ahorros", ahorroRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });

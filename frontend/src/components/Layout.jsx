@@ -20,6 +20,9 @@ export default function Layout() {
               <NavLink to="/dashboard" className={linkClase}>
                 Dashboard
               </NavLink>
+              <NavLink to="/presupuesto" className={linkClase}>
+                Presupuesto
+              </NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

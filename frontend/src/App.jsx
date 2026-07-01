@@ -3,6 +3,7 @@ import LoginPage from "./pages/LoginPage";
 import RegistroPage from "./pages/RegistroPage";
 import RegistroRapidoPage from "./pages/RegistroRapidoPage";
 import DashboardMesPage from "./pages/DashboardMesPage";
+import PresupuestoPage from "./pages/PresupuestoPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -21,6 +22,7 @@ function App() {
       >
         <Route index element={<RegistroRapidoPage />} />
         <Route path="dashboard" element={<DashboardMesPage />} />
+        <Route path="presupuesto" element={<PresupuestoPage />} />
       </Route>
     </Routes>
   );

@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegistroPage from "./pages/RegistroPage";
-import DashboardPage from "./pages/DashboardPage";
+import RegistroRapidoPage from "./pages/RegistroRapidoPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -18,7 +18,7 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route index element={<RegistroRapidoPage />} />
       </Route>
     </Routes>
   );

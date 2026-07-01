@@ -7,6 +7,8 @@ const transaccionRoutes = require("./routes/transaccionRoutes");
 const ajusteTrackerRoutes = require("./routes/ajusteTrackerRoutes");
 const diaLibreRoutes = require("./routes/diaLibreRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
+const botonRapidoRoutes = require("./routes/botonRapidoRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 const app = express();
 
@@ -24,6 +26,8 @@ app.use("/api/transacciones", transaccionRoutes);
 app.use("/api/ajustes-tracker", ajusteTrackerRoutes);
 app.use("/api/dias-libres", diaLibreRoutes);
 app.use("/api/tracker", trackerRoutes);
+app.use("/api/botones-rapidos", botonRapidoRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });

@@ -142,7 +142,7 @@ model Transaccion {
   tarjetaId     Int?              @map("tarjeta_id")
 
   presupuesto       PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
-  categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id])
+  categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
   tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
   movimientoTarjeta MovimientoTarjeta?
 
@@ -300,6 +300,7 @@ model BotonRapidoConfig {
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
+  @@unique([usuarioId, concepto])
   @@map("botones_rapidos_config")
 }
 

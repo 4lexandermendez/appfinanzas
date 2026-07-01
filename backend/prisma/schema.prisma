@@ -118,6 +118,7 @@ model CategoriaVariable {
   usuario       Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   transacciones Transaccion[]
 
+  @@unique([usuarioId, nombre])
   @@map("categorias_variables")
 }
 

@@ -12,6 +12,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const gastoFijoRoutes = require("./routes/gastoFijoRoutes");
 const ingresoRoutes = require("./routes/ingresoRoutes");
 const ahorroRoutes = require("./routes/ahorroRoutes");
+const tarjetaRoutes = require("./routes/tarjetaRoutes");
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/gastos-fijos", gastoFijoRoutes);
 app.use("/api/ingresos", ingresoRoutes);
 app.use("/api/ahorros", ahorroRoutes);
+app.use("/api/tarjetas", tarjetaRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });

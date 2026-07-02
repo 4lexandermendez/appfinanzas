@@ -23,6 +23,9 @@ export default function Layout() {
               <NavLink to="/presupuesto" className={linkClase}>
                 Presupuesto
               </NavLink>
+              <NavLink to="/tarjetas" className={linkClase}>
+                Tarjetas
+              </NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

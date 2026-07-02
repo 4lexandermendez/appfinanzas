@@ -217,6 +217,9 @@ model TarjetaCredito {
   diaCorte    Int     @map("dia_corte")
   diaPago     Int     @map("dia_pago")
   saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+  // No estaba en el borrador: sin esto no se puede calcular "diferencia entre
+  // pago mínimo y pago total" que pide la sección 3 de PLANIFICACION.md.
+  porcentajePagoMinimo Decimal @default(5) @map("porcentaje_pago_minimo") @db.Decimal(5, 2)
 
   usuario       Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   movimientos   MovimientoTarjeta[]

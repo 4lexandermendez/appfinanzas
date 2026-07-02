@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
 const { calcularEstimadoMes } = require("../services/estimadoTrackerService");
 const { calcularResumenReal } = require("../services/resumenTrackerService");
+const { calcularDetalleQuincenal } = require("../services/quincenalService");
 const { parseFechaSoloDia } = require("../utils/fecha");
 
 const CONCEPTOS_VALIDOS = ["PASAJE_IDA", "DESAYUNO", "ALMUERZO", "PASAJE_REGRESO"];
@@ -94,4 +95,18 @@ async function resumen(req, res) {
   res.json(resultado);
 }
 
-module.exports = { listar, crear, eliminar, estimado, resumen };
+async function quincenal(req, res) {
+  const anio = Number(req.query.anio);
+  const mes = Number(req.query.mes);
+  if (!anio || !mes || mes < 1 || mes > 12) {
+    return res.status(400).json({ error: "anio y mes son requeridos (mes entre 1 y 12)" });
+  }
+
+  const resultado = await calcularDetalleQuincenal(req.usuarioId, anio, mes);
+  if (!resultado) {
+    return res.status(400).json({ error: "Primero debes configurar Ajustes del Tracker (PUT /api/ajustes-tracker)" });
+  }
+  res.json(resultado);
+}
+
+module.exports = { listar, crear, eliminar, estimado, resumen, quincenal };

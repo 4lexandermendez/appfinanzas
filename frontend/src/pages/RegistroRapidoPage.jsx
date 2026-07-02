@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
-import { registrarTracker } from "../api/tracker";
+import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
 
@@ -12,6 +12,8 @@ const CONCEPTOS = [
   { valor: "PASAJE_REGRESO", etiqueta: "Pasaje regreso" },
 ];
 
+const ETIQUETAS_CONCEPTO = Object.fromEntries(CONCEPTOS.map((c) => [c.valor, c.etiqueta]));
+
 function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -20,6 +22,7 @@ export default function RegistroRapidoPage() {
   const [gastadoHoy, setGastadoHoy] = useState(null);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [registrosHoy, setRegistrosHoy] = useState([]);
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
 
@@ -30,14 +33,17 @@ export default function RegistroRapidoPage() {
   const [enviandoForm, setEnviandoForm] = useState(false);
 
   async function cargarTodo() {
-    const [totales, botonesData, categoriasData] = await Promise.all([
+    const hoy = new Date();
+    const [totales, botonesData, categoriasData, trackerMes] = await Promise.all([
       obtenerGastadoHoy(),
       listarBotonesRapidos(),
       listarCategorias(),
+      listarTracker(hoy.getFullYear(), hoy.getMonth() + 1),
     ]);
     setGastadoHoy(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
+    setRegistrosHoy(trackerMes.filter((r) => r.fecha.slice(0, 10) === hoyISO()));
   }
 
   useEffect(() => {
@@ -49,14 +55,18 @@ export default function RegistroRapidoPage() {
     setMensaje("");
     try {
       await registrarTracker({ fecha: hoyISO(), concepto, monto: montoBoton });
-      const totales = await obtenerGastadoHoy();
-      setGastadoHoy(totales.totalHoy);
+      await cargarTodo();
       setMensaje(`Registrado: $${montoBoton}`);
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar");
     } finally {
       setRegistrando(null);
     }
+  }
+
+  async function handleEliminarTracker(id) {
+    await eliminarTracker(id);
+    await cargarTodo();
   }
 
   async function handleSubmitGasto(e) {
@@ -134,6 +144,27 @@ export default function RegistroRapidoPage() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Hoy registraste</h2>
+        <div className="space-y-1">
+          {registrosHoy.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 text-sm">
+              <span className="flex-1 text-gray-700">{ETIQUETAS_CONCEPTO[r.concepto] || r.concepto}</span>
+              <span className="text-gray-500">${Number(r.monto).toFixed(2)}</span>
+              <button
+                onClick={() => handleEliminarTracker(r.id)}
+                className="text-red-500 hover:underline"
+              >
+                Corregir / borrar
+              </button>
+            </div>
+          ))}
+          {registrosHoy.length === 0 && (
+            <p className="text-sm text-gray-400">Todavía no registraste nada hoy en el tracker</p>
+          )}
         </div>
       </div>
 

@@ -3,6 +3,8 @@ const { formatDateKey, diasEnMes } = require("../utils/fecha");
 const { redondear } = require("../utils/dinero");
 const { tipoDeDia, conceptosParaTipo } = require("./calendarioService");
 
+const CONCEPTOS_TRANSPORTE = new Set(["PASAJE_IDA", "PASAJE_REGRESO"]);
+
 // Para días ya pasados con registro real en el Tracker Diario, se usa el monto
 // real registrado ese día en vez del monto actual de Ajustes. Así, si el usuario
 // cambia un monto hoy, no se reescribe retroactivamente el estimado de días que
@@ -38,8 +40,8 @@ async function calcularEstimadoMes(usuarioId, anio, mes) {
 
   const totalPorConcepto = { PASAJE_IDA: 0, DESAYUNO: 0, ALMUERZO: 0, PASAJE_REGRESO: 0 };
   const quincenas = [
-    { quincena: 1, estimado: 0 },
-    { quincena: 2, estimado: 0 },
+    { quincena: 1, estimado: 0, transporte: 0, comida: 0 },
+    { quincena: 2, estimado: 0, transporte: 0, comida: 0 },
   ];
   let totalGeneral = 0;
   const dias = [];
@@ -63,6 +65,10 @@ async function calcularEstimadoMes(usuarioId, anio, mes) {
     totalGeneral = redondear(totalGeneral + totalDia);
     const q = d <= 15 ? 0 : 1;
     quincenas[q].estimado = redondear(quincenas[q].estimado + totalDia);
+    const transporteDia = redondear(items.filter((i) => CONCEPTOS_TRANSPORTE.has(i.concepto)).reduce((s, i) => s + i.monto, 0));
+    const comidaDia = redondear(totalDia - transporteDia);
+    quincenas[q].transporte = redondear(quincenas[q].transporte + transporteDia);
+    quincenas[q].comida = redondear(quincenas[q].comida + comidaDia);
 
     dias.push({ fecha: formatDateKey(fecha), tipo, items, total: totalDia });
   }

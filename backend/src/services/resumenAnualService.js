@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { redondear } = require("../utils/dinero");
+const { calcularResumenMes } = require("./resumenMensualService");
 
 async function calcularResumenAnual(usuarioId, anio) {
   const presupuestos = await prisma.presupuestoMensual.findMany({
@@ -25,7 +26,42 @@ async function calcularResumenAnual(usuarioId, anio) {
     meses.push({ mes, ingresosReal, gastosReal, ahorroReal });
   }
 
-  return { anio, meses };
+  const totalAhorradoAnual = redondear(meses.reduce((s, m) => s + m.ahorroReal, 0));
+  const mesMasGasto = meses.reduce((max, m) => (m.gastosReal > max.gastosReal ? m : max), meses[0]).mes;
+  const mesMasAhorro = meses.reduce((max, m) => (m.ahorroReal > max.ahorroReal ? m : max), meses[0]).mes;
+
+  // Tendencia: para cada mes con presupuesto, cuenta cuántas veces se excedió
+  // cada categoría (gastos fijos, y variables con estimado conocido: Transporte/Comida).
+  const conteoExcesos = new Map();
+  for (const p of presupuestos) {
+    const resumenMes = await calcularResumenMes(usuarioId, anio, p.mes);
+    if (resumenMes.gastosFijos.estimado > 0 && resumenMes.gastosFijos.real > resumenMes.gastosFijos.estimado) {
+      conteoExcesos.set("Gastos fijos", (conteoExcesos.get("Gastos fijos") || 0) + 1);
+    }
+    for (const cat of resumenMes.gastosVariables.porCategoria) {
+      if (cat.estimado && cat.real > cat.estimado) {
+        conteoExcesos.set(cat.nombre, (conteoExcesos.get(cat.nombre) || 0) + 1);
+      }
+    }
+  }
+
+  let categoriaTendencia = null;
+  let maxExcesos = 0;
+  for (const [nombre, veces] of conteoExcesos) {
+    if (veces > maxExcesos) {
+      maxExcesos = veces;
+      categoriaTendencia = nombre;
+    }
+  }
+
+  return {
+    anio,
+    meses,
+    totalAhorradoAnual,
+    mesMasGasto,
+    mesMasAhorro,
+    tendencia: categoriaTendencia ? { categoria: categoriaTendencia, mesesExcedidos: maxExcesos } : null,
+  };
 }
 
 module.exports = { calcularResumenAnual };

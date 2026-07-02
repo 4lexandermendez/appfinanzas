@@ -13,7 +13,7 @@ export default function Layout() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-5">
             <span className="font-semibold text-gray-900">Finanzas Personales</span>
-            <nav className="flex items-center gap-4">
+            <nav className="flex items-center gap-4 flex-wrap">
               <NavLink to="/" end className={linkClase}>
                 Registro rápido
               </NavLink>
@@ -28,6 +28,9 @@ export default function Layout() {
               </NavLink>
               <NavLink to="/alertas" className={linkClase}>
                 Alertas
+              </NavLink>
+              <NavLink to="/anual" className={linkClase}>
+                Anual
               </NavLink>
             </nav>
           </div>

@@ -32,6 +32,9 @@ export default function Layout() {
               <NavLink to="/anual" className={linkClase}>
                 Anual
               </NavLink>
+              <NavLink to="/metas" className={linkClase}>
+                Metas
+              </NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

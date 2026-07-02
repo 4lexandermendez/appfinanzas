@@ -26,6 +26,9 @@ export default function Layout() {
               <NavLink to="/tarjetas" className={linkClase}>
                 Tarjetas
               </NavLink>
+              <NavLink to="/alertas" className={linkClase}>
+                Alertas
+              </NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

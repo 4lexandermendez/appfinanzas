@@ -320,5 +320,6 @@ model AlertaConfig {
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
+  @@unique([usuarioId, tipo])
   @@map("alertas_config")
 }

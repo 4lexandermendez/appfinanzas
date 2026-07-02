@@ -5,6 +5,7 @@ import RegistroRapidoPage from "./pages/RegistroRapidoPage";
 import DashboardMesPage from "./pages/DashboardMesPage";
 import PresupuestoPage from "./pages/PresupuestoPage";
 import TarjetasPage from "./pages/TarjetasPage";
+import AlertasPage from "./pages/AlertasPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -25,6 +26,7 @@ function App() {
         <Route path="dashboard" element={<DashboardMesPage />} />
         <Route path="presupuesto" element={<PresupuestoPage />} />
         <Route path="tarjetas" element={<TarjetasPage />} />
+        <Route path="alertas" element={<AlertasPage />} />
       </Route>
     </Routes>
   );

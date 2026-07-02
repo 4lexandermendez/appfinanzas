@@ -9,6 +9,10 @@ import {
   listarGastosFijosConfig, crearGastoFijo, actualizarGastoFijo, eliminarGastoFijo,
   guardarGastoFijoMensual,
 } from "../api/gastosFijos";
+import {
+  listarDeudasConfig, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
+} from "../api/deudas";
+import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -17,7 +21,7 @@ function hoy() {
   return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
 }
 
-function NuevoItemForm({ onSubmit, placeholder = "Nombre" }) {
+function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "Estimado" }) {
   const [nombre, setNombre] = useState("");
   const [montoEstimado, setMontoEstimado] = useState("");
 
@@ -42,7 +46,7 @@ function NuevoItemForm({ onSubmit, placeholder = "Nombre" }) {
         type="number"
         step="0.01"
         min="0.01"
-        placeholder="Estimado"
+        placeholder={placeholderMonto}
         value={montoEstimado}
         onChange={(e) => setMontoEstimado(e.target.value)}
         className="w-28 border border-gray-300 rounded px-2 py-1 text-sm"
@@ -59,18 +63,24 @@ export default function PresupuestoPage() {
   const [ingresos, setIngresos] = useState([]);
   const [ahorros, setAhorros] = useState([]);
   const [gastosFijos, setGastosFijos] = useState([]);
+  const [deudas, setDeudas] = useState([]);
+  const [estimadoVariables, setEstimadoVariables] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   async function cargarTodo() {
     setCargando(true);
-    const [i, a, g] = await Promise.all([
+    const [i, a, g, d, ev] = await Promise.all([
       listarIngresos(anio, mes),
       listarAhorros(anio, mes),
       listarGastosFijosConfig(),
+      listarDeudasConfig(),
+      listarEstimadoVariables(anio, mes),
     ]);
     setIngresos(i);
     setAhorros(a);
     setGastosFijos(g);
+    setDeudas(d);
+    setEstimadoVariables(ev.filter((c) => !c.esDefault));
     setCargando(false);
   }
 
@@ -120,6 +130,30 @@ export default function PresupuestoPage() {
   async function handleRealGastoFijo(gastoFijoConfigId, montoReal) {
     if (montoReal === "") return;
     await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoReal: Number(montoReal) });
+    cargarTodo();
+  }
+
+  async function handleNuevaDeuda(datos) {
+    await crearDeuda({ nombre: datos.nombre, saldoActual: datos.montoEstimado });
+    cargarTodo();
+  }
+  async function handleToggleActivaDeuda(id, activo) {
+    await actualizarDeuda(id, { activo: !activo });
+    cargarTodo();
+  }
+  async function handleEliminarDeudaConfig(id) {
+    await eliminarDeuda(id);
+    cargarTodo();
+  }
+  async function handleDeudaMensual(deudaConfigId, campo, valor) {
+    if (valor === "") return;
+    await guardarDeudaMensual({ deudaConfigId, anio, mes, [campo]: Number(valor) });
+    cargarTodo();
+  }
+
+  async function handleEstimadoVariable(categoriaId, montoEstimado) {
+    if (montoEstimado === "") return;
+    await guardarEstimadoVariable({ categoriaId, anio, mes, montoEstimado: Number(montoEstimado) });
     cargarTodo();
   }
 
@@ -230,6 +264,76 @@ export default function PresupuestoPage() {
           {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos configurados</p>}
         </div>
         <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
+      </section>
+
+      <section className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">Deudas</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
+        </p>
+        <div className="space-y-2">
+          {deudas.map((d) => (
+            <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
+              <span className="flex-1">{d.nombre}</span>
+              <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
+              {d.activo && (
+                <>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Estimado del mes"
+                    onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
+                    className="w-28 border border-gray-300 rounded px-2 py-1"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Real (pago)"
+                    onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
+                    className="w-24 border border-gray-300 rounded px-2 py-1"
+                  />
+                </>
+              )}
+              <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
+                {d.activo ? "Deshabilitar" : "Reactivar"}
+              </button>
+              <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
+                Eliminar
+              </button>
+            </div>
+          ))}
+          {deudas.length === 0 && <p className="text-sm text-gray-400">Sin deudas registradas</p>}
+        </div>
+        <NuevoItemForm onSubmit={handleNuevaDeuda} placeholder="Ej. Préstamo moto" placeholderMonto="Saldo actual" />
+      </section>
+
+      <section className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">Gastos variables (estimado)</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          Transporte y Comida usan el estimado automático del Tracker. Acá va el estimado del resto (Temu,
+          Universidad, etc.) — el nombre se autocompleta desde tu historial al registrar el gasto real en
+          Registro Rápido.
+        </p>
+        <div className="space-y-2">
+          {estimadoVariables.map((c) => (
+            <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
+              <span className="flex-1">{c.nombre}</span>
+              <input
+                type="number"
+                step="0.01"
+                defaultValue={c.montoEstimado ?? ""}
+                placeholder="Estimado"
+                onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
+                className="w-28 border border-gray-300 rounded px-2 py-1"
+              />
+            </div>
+          ))}
+          {estimadoVariables.length === 0 && (
+            <p className="text-sm text-gray-400">
+              Todavía no registraste ningún gasto variable este mes (fuera de Transporte/Comida).
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

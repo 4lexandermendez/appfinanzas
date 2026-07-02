@@ -5,7 +5,14 @@ const { calcularResumenMes } = require("./resumenMensualService");
 async function calcularResumenAnual(usuarioId, anio) {
   const presupuestos = await prisma.presupuestoMensual.findMany({
     where: { usuarioId, anio },
-    include: { ingresos: true, ahorros: true, transacciones: true, gastosFijosMes: true, trackerDiario: true },
+    include: {
+      ingresos: true,
+      ahorros: true,
+      transacciones: true,
+      gastosFijosMes: true,
+      trackerDiario: true,
+      deudasMes: true,
+    },
   });
 
   const meses = [];
@@ -21,7 +28,8 @@ async function calcularResumenAnual(usuarioId, anio) {
     const gastosFijosReal = redondear(p.gastosFijosMes.reduce((s, g) => s + Number(g.montoReal || 0), 0));
     const transaccionesReal = redondear(p.transacciones.reduce((s, t) => s + Number(t.monto), 0));
     const trackerReal = redondear(p.trackerDiario.reduce((s, t) => s + Number(t.monto), 0));
-    const gastosReal = redondear(gastosFijosReal + transaccionesReal + trackerReal);
+    const deudasReal = redondear(p.deudasMes.reduce((s, d) => s + Number(d.montoReal || 0), 0));
+    const gastosReal = redondear(gastosFijosReal + transaccionesReal + trackerReal + deudasReal);
 
     meses.push({ mes, ingresosReal, gastosReal, ahorroReal });
   }
@@ -37,6 +45,9 @@ async function calcularResumenAnual(usuarioId, anio) {
     const resumenMes = await calcularResumenMes(usuarioId, anio, p.mes);
     if (resumenMes.gastosFijos.estimado > 0 && resumenMes.gastosFijos.real > resumenMes.gastosFijos.estimado) {
       conteoExcesos.set("Gastos fijos", (conteoExcesos.get("Gastos fijos") || 0) + 1);
+    }
+    if (resumenMes.deudas.estimado > 0 && resumenMes.deudas.real > resumenMes.deudas.estimado) {
+      conteoExcesos.set("Deudas", (conteoExcesos.get("Deudas") || 0) + 1);
     }
     for (const cat of resumenMes.gastosVariables.porCategoria) {
       if (cat.estimado && cat.real > cat.estimado) {

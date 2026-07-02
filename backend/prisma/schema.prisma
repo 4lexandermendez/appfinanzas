@@ -29,6 +29,7 @@ model Usuario {
   diasLibres           DiaLibre[]
   botonesRapidosConfig BotonRapidoConfig[]
   alertasConfig        AlertaConfig[]
+  deudasConfig         DeudaConfig[]
 
   @@map("usuarios")
 }
@@ -44,12 +45,14 @@ model PresupuestoMensual {
   mes       Int
   notas     String? @db.Text
 
-  usuario        Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  ingresos       Ingreso[]
-  ahorros        Ahorro[]
-  transacciones  Transaccion[]
-  trackerDiario  TrackerDiario[]
-  gastosFijosMes GastoFijoMensual[]
+  usuario                Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ingresos               Ingreso[]
+  ahorros                Ahorro[]
+  transacciones          Transaccion[]
+  trackerDiario          TrackerDiario[]
+  gastosFijosMes         GastoFijoMensual[]
+  deudasMes              DeudaMensual[]
+  categoriasVariablesMes CategoriaVariableMensual[]
 
   @@unique([usuarioId, anio, mes])
   @@map("presupuesto_mensual")
@@ -115,11 +118,29 @@ model CategoriaVariable {
   nombre    String
   esDefault Boolean @default(false) @map("es_default")
 
-  usuario       Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  transacciones Transaccion[]
+  usuario         Usuario                    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  transacciones   Transaccion[]
+  presupuestosMes CategoriaVariableMensual[]
 
   @@unique([usuarioId, nombre])
   @@map("categorias_variables")
+}
+
+// Estimado que el usuario escribe cada mes para una categoría variable
+// (ej. "Temu $44.23", "Universidad $256.52"). No estaba en el borrador:
+// el Real ya se sacaba solo de las transacciones, pero no había dónde
+// guardar el Estimado que el usuario piensa gastar ese mes.
+model CategoriaVariableMensual {
+  id            Int     @id @default(autoincrement())
+  presupuestoId Int     @map("presupuesto_id")
+  categoriaId   Int     @map("categoria_id")
+  montoEstimado Decimal @map("monto_estimado") @db.Decimal(10, 2)
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  categoria   CategoriaVariable  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@unique([presupuestoId, categoriaId])
+  @@map("categorias_variables_mensual")
 }
 
 // ============================================================
@@ -206,17 +227,51 @@ model MetaAhorro {
 }
 
 // ============================================================
+// DEUDAS (no tarjetas de crédito; ej. préstamos, deudas personales)
+// No estaba en la sección 5 del borrador: el Excel sí tenía la sección
+// "Deudas" (Nombre | Estimado | Real | Actual) en cada mes, pero nunca
+// se modeló ninguna tabla para ella.
+// ============================================================
+
+model DeudaConfig {
+  id          Int     @id @default(autoincrement())
+  usuarioId   Int     @map("usuario_id")
+  nombre      String
+  saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+  activo      Boolean @default(true)
+
+  usuario         Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  deudasMensuales DeudaMensual[]
+
+  @@map("deudas_config")
+}
+
+model DeudaMensual {
+  id            Int      @id @default(autoincrement())
+  presupuestoId Int      @map("presupuesto_id")
+  deudaConfigId Int      @map("deuda_config_id")
+  montoEstimado Decimal? @map("monto_estimado") @db.Decimal(10, 2)
+  montoReal     Decimal? @map("monto_real") @db.Decimal(10, 2)
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  deudaConfig DeudaConfig        @relation(fields: [deudaConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([presupuestoId, deudaConfigId])
+  @@map("deudas_mensual")
+}
+
+// ============================================================
 // TARJETAS DE CRÉDITO
 // ============================================================
 
 model TarjetaCredito {
-  id          Int     @id @default(autoincrement())
-  usuarioId   Int     @map("usuario_id")
-  nombre      String
-  limite      Decimal @db.Decimal(10, 2)
-  diaCorte    Int     @map("dia_corte")
-  diaPago     Int     @map("dia_pago")
-  saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+  id                   Int     @id @default(autoincrement())
+  usuarioId            Int     @map("usuario_id")
+  nombre               String
+  limite               Decimal @db.Decimal(10, 2)
+  diaCorte             Int     @map("dia_corte")
+  diaPago              Int     @map("dia_pago")
+  saldoActual          Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
   // No estaba en el borrador: sin esto no se puede calcular "diferencia entre
   // pago mínimo y pago total" que pide la sección 3 de PLANIFICACION.md.
   porcentajePagoMinimo Decimal @default(5) @map("porcentaje_pago_minimo") @db.Decimal(5, 2)

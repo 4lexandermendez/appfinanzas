@@ -5,21 +5,26 @@ const { calcularEstimadoMes } = require("./estimadoTrackerService");
 const { calcularResumenReal } = require("./resumenTrackerService");
 
 // El schema (sección 5 de PLANIFICACION.md) no modela un "estimado" para
-// categorías variables genéricas, solo para Transporte y Comida (vía el
-// tracker diario + Ajustes). Para el resto de categorías, "estimado" queda
-// en null en vez de mostrar 0, para no simular un dato que no existe.
+// categorías variables genéricas. Transporte y Comida lo sacan del tracker
+// diario + Ajustes; el resto (Temu, Universidad, etc.) usa el estimado que
+// el usuario escribe a mano cada mes (CategoriaVariableMensual). Si ninguna
+// de las dos existe, "estimado" queda en null en vez de mostrar 0.
 async function calcularResumenMes(usuarioId, anio, mes) {
   const presupuesto = await prisma.presupuestoMensual.findUnique({
     where: { usuarioId_anio_mes: { usuarioId, anio, mes } },
   });
 
-  const [ingresos, ahorros, gastosFijosConfig, gastosFijosMensual, transacciones] = await Promise.all([
-    presupuesto ? prisma.ingreso.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-    presupuesto ? prisma.ahorro.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-    prisma.gastoFijoConfig.findMany({ where: { usuarioId, activo: true } }),
-    presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-    presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-  ]);
+  const [ingresos, ahorros, gastosFijosConfig, gastosFijosMensual, transacciones, estimadosVariables, deudasConfig, deudasMensual] =
+    await Promise.all([
+      presupuesto ? prisma.ingreso.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      presupuesto ? prisma.ahorro.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      prisma.gastoFijoConfig.findMany({ where: { usuarioId, activo: true } }),
+      presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      presupuesto ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      prisma.deudaConfig.findMany({ where: { usuarioId, activo: true } }),
+      presupuesto ? prisma.deudaMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+    ]);
 
   const ingresosResumen = {
     estimado: redondear(ingresos.reduce((s, i) => s + Number(i.montoEstimado), 0)),
@@ -34,12 +39,21 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
   };
 
+  const deudasPorConfig = new Map(deudasMensual.map((d) => [d.deudaConfigId, d]));
+  const deudasResumen = {
+    estimado: redondear(
+      deudasConfig.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoEstimado || 0), 0)
+    ),
+    real: redondear(deudasConfig.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoReal || 0), 0)),
+  };
+
   const categorias = await listarCategorias(usuarioId);
   const realPorCategoria = new Map();
   for (const t of transacciones) {
     const previo = realPorCategoria.get(t.categoriaId) || 0;
     realPorCategoria.set(t.categoriaId, previo + Number(t.monto));
   }
+  const estimadoManualPorCategoria = new Map(estimadosVariables.map((e) => [e.categoriaId, Number(e.montoEstimado)]));
 
   const resumenTracker = await calcularResumenReal(usuarioId, anio, mes);
   const estimadoTracker = await calcularEstimadoMes(usuarioId, anio, mes);
@@ -57,7 +71,8 @@ async function calcularResumenMes(usuarioId, anio, mes) {
 
   const porCategoria = categorias.map((c) => {
     let real = redondear(realPorCategoria.get(c.id) || 0);
-    let estimado = null;
+    let estimado = estimadoManualPorCategoria.has(c.id) ? estimadoManualPorCategoria.get(c.id) : null;
+
     if (c.esDefault && c.nombre === "Transporte") {
       real = redondear(real + resumenTracker.transporteReal);
       estimado = transporteEstimado;
@@ -80,6 +95,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     ahorros: ahorrosResumen,
     gastosFijos: gastosFijosResumen,
     gastosVariables: gastosVariablesResumen,
+    deudas: deudasResumen,
   };
 }
 

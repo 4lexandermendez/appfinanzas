@@ -15,6 +15,8 @@ const ahorroRoutes = require("./routes/ahorroRoutes");
 const tarjetaRoutes = require("./routes/tarjetaRoutes");
 const alertaRoutes = require("./routes/alertaRoutes");
 const metaAhorroRoutes = require("./routes/metaAhorroRoutes");
+const deudaRoutes = require("./routes/deudaRoutes");
+const categoriaVariableMensualRoutes = require("./routes/categoriaVariableMensualRoutes");
 
 const app = express();
 
@@ -40,6 +42,8 @@ app.use("/api/ahorros", ahorroRoutes);
 app.use("/api/tarjetas", tarjetaRoutes);
 app.use("/api/alertas", alertaRoutes);
 app.use("/api/metas-ahorro", metaAhorroRoutes);
+app.use("/api/deudas", deudaRoutes);
+app.use("/api/categorias-variables-mensual", categoriaVariableMensualRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });

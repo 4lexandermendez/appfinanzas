@@ -44,6 +44,9 @@ async function calcularAlertas(usuarioId, anio, mes) {
     const aFijos = alertaPresupuesto("Gastos fijos", resumen.gastosFijos.real, resumen.gastosFijos.estimado, umbral);
     if (aFijos) alertas.push(aFijos);
 
+    const aDeudas = alertaPresupuesto("Deudas", resumen.deudas.real, resumen.deudas.estimado, umbral);
+    if (aDeudas) alertas.push(aDeudas);
+
     for (const cat of resumen.gastosVariables.porCategoria) {
       if (cat.estimado === null) continue;
       const a = alertaPresupuesto(cat.nombre, cat.real, cat.estimado, umbral);
@@ -91,8 +94,9 @@ async function calcularAlertas(usuarioId, anio, mes) {
 
   const cfgResumen = mapa.get("RESUMEN_GENERAL");
   if (cfgResumen?.activo) {
-    const gastoReal = resumen.gastosFijos.real + resumen.gastosVariables.real;
-    const presupuestoConocido = resumen.gastosFijos.estimado + resumen.gastosVariables.estimadoConocido;
+    const gastoReal = resumen.gastosFijos.real + resumen.gastosVariables.real + resumen.deudas.real;
+    const presupuestoConocido =
+      resumen.gastosFijos.estimado + resumen.gastosVariables.estimadoConocido + resumen.deudas.estimado;
     const disponible = presupuestoConocido - gastoReal;
 
     const ahora = new Date();

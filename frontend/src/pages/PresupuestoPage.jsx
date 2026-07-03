@@ -307,7 +307,7 @@ export default function PresupuestoPage() {
               <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
                 <span className="flex-1">{d.nombre}</span>
                 <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
-                {d.activo && (
+                {estaVigenteEnMes(d, anio, mes) ? (
                   <>
                     <input
                       type="number"
@@ -324,6 +324,8 @@ export default function PresupuestoPage() {
                       className="w-24 border border-gray-300 rounded px-2 py-1"
                     />
                   </>
+                ) : (
+                  <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
                 )}
                 <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
                   {d.activo ? "Deshabilitar" : "Reactivar"}

@@ -239,12 +239,16 @@ model MetaAhorro {
 // se modeló ninguna tabla para ella.
 // ============================================================
 
+// creadoEn/desactivadoEn: mismo motivo que en GastoFijoConfig, una deuda
+// solo debe contar en el estimado de los meses desde que se creó en adelante.
 model DeudaConfig {
-  id          Int     @id @default(autoincrement())
-  usuarioId   Int     @map("usuario_id")
-  nombre      String
-  saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
-  activo      Boolean @default(true)
+  id            Int       @id @default(autoincrement())
+  usuarioId     Int       @map("usuario_id")
+  nombre        String
+  saldoActual   Decimal   @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+  activo        Boolean   @default(true)
+  creadoEn      DateTime  @default(now()) @map("creado_en")
+  desactivadoEn DateTime? @map("desactivado_en")
 
   usuario         Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   deudasMensuales DeudaMensual[]

@@ -23,7 +23,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
       presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-      prisma.deudaConfig.findMany({ where: { usuarioId, activo: true } }),
+      prisma.deudaConfig.findMany({ where: { usuarioId } }),
       presupuesto ? prisma.deudaMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
     ]);
 
@@ -41,12 +41,16 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
   };
 
+  const deudasVigentes = deudasConfig.filter((d) => estaVigenteEnMes(d, anio, mes));
   const deudasPorConfig = new Map(deudasMensual.map((d) => [d.deudaConfigId, d]));
   const deudasResumen = {
     estimado: redondear(
-      deudasConfig.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoEstimado || 0), 0)
+      deudasVigentes.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoEstimado || 0), 0)
     ),
-    real: redondear(deudasConfig.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoReal || 0), 0)),
+    // El Real suma todo lo ya registrado (deudasMensual), sin filtrar por
+    // vigencia: un pago que ya pasó no debe desaparecer del historial solo
+    // porque la deuda se haya deshabilitado después.
+    real: redondear(deudasMensual.reduce((s, d) => s + Number(d.montoReal || 0), 0)),
   };
 
   const categorias = await listarCategorias(usuarioId);

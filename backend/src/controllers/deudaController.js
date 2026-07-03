@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
+const { estaVigenteEnMes } = require("../utils/vigencia");
 
 async function listarConfig(req, res) {
   const deudas = await prisma.deudaConfig.findMany({
@@ -44,6 +45,7 @@ async function actualizarConfig(req, res) {
   if (activo !== undefined) {
     if (typeof activo !== "boolean") return res.status(400).json({ error: "activo debe ser true o false" });
     data.activo = activo;
+    data.desactivadoEn = activo ? null : new Date();
   }
 
   const deuda = await prisma.deudaConfig.update({ where: { id }, data });
@@ -68,10 +70,11 @@ async function listarMensual(req, res) {
     return res.status(400).json({ error: "anio y mes son requeridos (mes entre 1 y 12)" });
   }
 
-  const config = await prisma.deudaConfig.findMany({
-    where: { usuarioId: req.usuarioId, activo: true },
+  const configTodos = await prisma.deudaConfig.findMany({
+    where: { usuarioId: req.usuarioId },
     orderBy: { nombre: "asc" },
   });
+  const config = configTodos.filter((c) => estaVigenteEnMes(c, anio, mes));
 
   const presupuesto = await prisma.presupuestoMensual.findUnique({
     where: { usuarioId_anio_mes: { usuarioId: req.usuarioId, anio, mes } },

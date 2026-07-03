@@ -32,6 +32,7 @@ export default function RegistroRapidoPage() {
   const [monto, setMonto] = useState("");
   const [nota, setNota] = useState("");
   const [enviandoForm, setEnviandoForm] = useState(false);
+  const [montosLibres, setMontosLibres] = useState({});
 
   async function cargarTodo() {
     const hoy = new Date();
@@ -41,10 +42,15 @@ export default function RegistroRapidoPage() {
       listarCategorias(),
       listarTracker(hoy.getFullYear(), hoy.getMonth() + 1),
     ]);
+    const ordenConcepto = Object.fromEntries(CONCEPTOS.map((c, i) => [c.valor, i]));
     setGastadoHoy(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
-    setRegistrosHoy(trackerMes.filter((r) => r.fecha.slice(0, 10) === hoyISO()));
+    setRegistrosHoy(
+      trackerMes
+        .filter((r) => r.fecha.slice(0, 10) === hoyISO())
+        .sort((a, b) => ordenConcepto[a.concepto] - ordenConcepto[b.concepto] || a.id - b.id)
+    );
   }
 
   useEffect(() => {
@@ -68,6 +74,13 @@ export default function RegistroRapidoPage() {
   async function handleEliminarTracker(id) {
     await eliminarTracker(id);
     await cargarTodo();
+  }
+
+  async function handleMontoLibre(concepto) {
+    const valor = montosLibres[concepto];
+    if (valor === undefined || valor === "") return;
+    await handleBoton(concepto, Number(valor));
+    setMontosLibres((prev) => ({ ...prev, [concepto]: "" }));
   }
 
   async function handleSubmitGasto(e) {
@@ -117,57 +130,80 @@ export default function RegistroRapidoPage() {
         </p>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
-        <div className="space-y-3">
-          {CONCEPTOS.map((c) => {
-            const config = botones.find((b) => b.concepto === c.valor);
-            const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
-            return (
-              <div key={c.valor}>
-                <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
-                <div className="flex flex-wrap gap-2">
-                  {montos.length === 0 && (
-                    <span className="text-xs text-gray-400">
-                      Sin montos configurados (ve a Ajustes)
-                    </span>
-                  )}
-                  {montos.map((m) => (
+      <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
+          <div className="space-y-3">
+            {CONCEPTOS.map((c) => {
+              const config = botones.find((b) => b.concepto === c.valor);
+              const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
+              return (
+                <div key={c.valor}>
+                  <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
-                      key={m}
                       type="button"
-                      disabled={registrando === `${c.valor}-${m}`}
-                      onClick={() => handleBoton(c.valor, Number(m))}
-                      className="px-3 py-2 rounded bg-purple-100 text-purple-800 text-sm font-medium hover:bg-purple-200 disabled:opacity-50"
+                      disabled={registrando === `${c.valor}-0`}
+                      onClick={() => handleBoton(c.valor, 0)}
+                      className="px-3 py-2 rounded bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
                     >
-                      ${Number(m).toFixed(2)}
+                      $0.00
                     </button>
-                  ))}
+                    {montos.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={registrando === `${c.valor}-${m}`}
+                        onClick={() => handleBoton(c.valor, Number(m))}
+                        className="px-3 py-2 rounded bg-purple-100 text-purple-800 text-sm font-medium hover:bg-purple-200 disabled:opacity-50"
+                      >
+                        ${Number(m).toFixed(2)}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Otro"
+                        value={montosLibres[c.valor] ?? ""}
+                        onChange={(e) => setMontosLibres((prev) => ({ ...prev, [c.valor]: e.target.value }))}
+                        className="w-16 border border-gray-300 rounded px-2 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleMontoLibre(c.valor)}
+                        className="px-2 py-2 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+                      >
+                        OK
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Hoy registraste</h2>
-        <div className="space-y-1">
-          {registrosHoy.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1 text-gray-700">{ETIQUETAS_CONCEPTO[r.concepto] || r.concepto}</span>
-              <span className="text-gray-500">${Number(r.monto).toFixed(2)}</span>
-              <button
-                onClick={() => handleEliminarTracker(r.id)}
-                className="text-red-500 hover:underline"
-              >
-                Corregir / borrar
-              </button>
-            </div>
-          ))}
-          {registrosHoy.length === 0 && (
-            <p className="text-sm text-gray-400">Todavía no registraste nada hoy en el tracker</p>
-          )}
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Hoy registraste</h2>
+          <div className="space-y-1">
+            {registrosHoy.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-sm">
+                <span className="flex-1 text-gray-700">{ETIQUETAS_CONCEPTO[r.concepto] || r.concepto}</span>
+                <span className="text-gray-500">${Number(r.monto).toFixed(2)}</span>
+                <button
+                  onClick={() => handleEliminarTracker(r.id)}
+                  className="text-red-500 hover:underline"
+                >
+                  Corregir / borrar
+                </button>
+              </div>
+            ))}
+            {registrosHoy.length === 0 && (
+              <p className="text-sm text-gray-400">Todavía no registraste nada hoy en el tracker</p>
+            )}
+          </div>
         </div>
       </div>
 

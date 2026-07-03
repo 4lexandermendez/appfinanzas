@@ -39,8 +39,8 @@ async function crear(req, res) {
     return res.status(400).json({ error: `concepto debe ser uno de: ${CONCEPTOS_VALIDOS.join(", ")}` });
   }
   const montoNum = Number(monto);
-  if (!Number.isFinite(montoNum) || montoNum <= 0) {
-    return res.status(400).json({ error: "monto debe ser un número mayor a 0" });
+  if (!Number.isFinite(montoNum) || montoNum < 0) {
+    return res.status(400).json({ error: "monto debe ser un número mayor o igual a 0" });
   }
 
   const presupuesto = await obtenerOCrearPresupuesto(

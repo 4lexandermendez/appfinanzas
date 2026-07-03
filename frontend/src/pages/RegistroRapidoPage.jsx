@@ -2,10 +2,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
-import { listarCategorias, crearCategoria } from "../api/categorias";
+import { listarCategorias } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosConfig, guardarGastoFijoMensual } from "../api/gastosFijos";
-import AutocompletadoCategoria from "../components/AutocompletadoCategoria";
 
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
@@ -61,7 +60,6 @@ export default function RegistroRapidoPage() {
   const [mensaje, setMensaje] = useState("");
 
   const [categoriaId, setCategoriaId] = useState(null);
-  const [categoriaTexto, setCategoriaTexto] = useState("");
   const [monto, setMonto] = useState("");
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
@@ -132,26 +130,17 @@ export default function RegistroRapidoPage() {
   async function handleSubmitGasto(e) {
     e.preventDefault();
     setMensaje("");
+    if (!categoriaId) {
+      setMensaje("Elige una categoría");
+      return;
+    }
     setEnviandoForm(true);
     try {
-      let idCategoria = categoriaId;
-      if (!idCategoria && categoriaTexto.trim()) {
-        const existente = categorias.find(
-          (c) => c.nombre.toLowerCase() === categoriaTexto.trim().toLowerCase()
-        );
-        idCategoria = existente ? existente.id : (await crearCategoria(categoriaTexto.trim())).id;
-      }
-      if (!idCategoria) {
-        setMensaje("Elige o escribe una categoría");
-        return;
-      }
-      await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: fechaSeleccionada });
+      await crearTransaccion({ categoriaId: Number(categoriaId), monto: Number(monto), fecha: fechaSeleccionada });
       setMonto("");
-      setCategoriaTexto("");
-      setCategoriaId(null);
-      const [totales, categoriasData] = await Promise.all([obtenerGastadoHoy(fechaSeleccionada), listarCategorias()]);
+      setCategoriaId("");
+      const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
-      setCategorias(categoriasData);
       setMensaje("Gasto registrado");
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto");
@@ -321,16 +310,21 @@ export default function RegistroRapidoPage() {
           <h2 className="text-sm font-semibold text-gray-700">Gasto variable</h2>
 
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-            <AutocompletadoCategoria
-              categorias={categorias}
-              valor={categoriaTexto}
-              onChange={(texto, id) => {
-                setCategoriaTexto(texto);
-                setCategoriaId(id);
-              }}
-              placeholder="Ej. Netflix (empezá a escribir para ver sugerencias)"
-            />
+            <label className="block text-xs text-gray-500 mb-1">¿Cuál gastaste?</label>
+            <select
+              value={categoriaId ?? ""}
+              onChange={(e) => setCategoriaId(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              <option value="">-- Elegir categoría --</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.nombre}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+            </p>
           </div>
 
           <div>

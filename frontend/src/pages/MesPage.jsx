@@ -294,7 +294,7 @@ export default function MesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TablaDetalle
           titulo="Ingresos"
           colorCabecera="bg-green-100 text-green-800"
@@ -306,6 +306,18 @@ export default function MesPage() {
             { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
           ]}
         />
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Notas</h2>
+          <textarea
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            onBlur={handleGuardarNotas}
+            rows={4}
+            placeholder="Escribí tus notas acá"
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+          />
+          {notasGuardando && <p className="text-xs text-gray-400 mt-1">Guardando...</p>}
+        </div>
         <TablaDetalle
           titulo="Ahorros"
           colorCabecera="bg-blue-100 text-blue-800"
@@ -351,19 +363,6 @@ export default function MesPage() {
           { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
         ]}
       />
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">Notas</h2>
-        <textarea
-          value={notas}
-          onChange={(e) => setNotas(e.target.value)}
-          onBlur={handleGuardarNotas}
-          rows={4}
-          placeholder="Escribí tus notas acá"
-          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-        />
-        {notasGuardando && <p className="text-xs text-gray-400 mt-1">Guardando...</p>}
-      </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">

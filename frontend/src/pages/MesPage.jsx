@@ -287,28 +287,41 @@ export default function MesPage() {
         </div>
       </div>
 
-      <TablaDetalle
-        titulo="Ingresos"
-        colorCabecera="bg-green-100 text-green-800"
-        filas={filasIngresos}
-        columnas={[
-          { clave: "nombre", etiqueta: "Nombre" },
-          { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
-          { clave: "montoReal", etiqueta: "Real", derecha: true },
-          { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
-        ]}
-      />
-      <TablaDetalle
-        titulo="Ahorros"
-        colorCabecera="bg-blue-100 text-blue-800"
-        filas={filasAhorros}
-        columnas={[
-          { clave: "nombre", etiqueta: "Nombre" },
-          { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
-          { clave: "montoReal", etiqueta: "Real", derecha: true },
-          { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
-        ]}
-      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <TablaDetalle
+          titulo="Ingresos"
+          colorCabecera="bg-green-100 text-green-800"
+          filas={filasIngresos}
+          columnas={[
+            { clave: "nombre", etiqueta: "Nombre" },
+            { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
+            { clave: "montoReal", etiqueta: "Real", derecha: true },
+            { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
+          ]}
+        />
+        <TablaDetalle
+          titulo="Ahorros"
+          colorCabecera="bg-blue-100 text-blue-800"
+          filas={filasAhorros}
+          columnas={[
+            { clave: "nombre", etiqueta: "Nombre" },
+            { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
+            { clave: "montoReal", etiqueta: "Real", derecha: true },
+            { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
+          ]}
+        />
+        <TablaDetalle
+          titulo="Deudas"
+          colorCabecera="bg-pink-100 text-pink-800"
+          filas={filasDeudas}
+          columnas={[
+            { clave: "nombre", etiqueta: "Nombre" },
+            { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
+            { clave: "montoReal", etiqueta: "Real", derecha: true },
+            { clave: "actual", etiqueta: "Actual", derecha: true },
+          ]}
+        />
+      </div>
       <TablaDetalle
         titulo="Gastos fijos"
         colorCabecera="bg-pink-100 text-pink-800"
@@ -329,17 +342,6 @@ export default function MesPage() {
           { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
           { clave: "montoReal", etiqueta: "Real", derecha: true },
           { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
-        ]}
-      />
-      <TablaDetalle
-        titulo="Deudas"
-        colorCabecera="bg-pink-100 text-pink-800"
-        filas={filasDeudas}
-        columnas={[
-          { clave: "nombre", etiqueta: "Nombre" },
-          { clave: "montoEstimado", etiqueta: "Estimado", derecha: true },
-          { clave: "montoReal", etiqueta: "Real", derecha: true },
-          { clave: "actual", etiqueta: "Actual", derecha: true },
         ]}
       />
 

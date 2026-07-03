@@ -192,50 +192,52 @@ export default function MesPage() {
 
       <h1 className="text-4xl font-bold text-center text-gray-900">{MESES[mes - 1]}</h1>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="text-gray-500 text-left">
-            <tr>
-              <th className="px-4 py-2"></th>
-              <th className="px-4 py-2 text-right">Presupuestado</th>
-              <th className="px-4 py-2 text-right">Real</th>
-            </tr>
-          </thead>
-          <tbody>
-            <FilaCategoria nombre="Ingresos" presupuesto={resumen.ingresos.estimado} real={resumen.ingresos.real} colorFondo="text-green-700" />
-            {categoriasSalida.map((c) => (
-              <FilaCategoria key={c.nombre} nombre={c.nombre} presupuesto={c.estimado} real={c.real} colorFondo="text-gray-700" />
-            ))}
-            <tr className="border-t-2 border-gray-300">
-              <td className="px-4 py-2 font-semibold">Sin usar</td>
-              <td className={`px-4 py-2 text-right font-semibold ${sinUsarEstimado < 0 ? "text-red-600" : ""}`}>
-                {sinUsarEstimado < 0 ? `(${fmt(Math.abs(sinUsarEstimado))})` : fmt(sinUsarEstimado)}
-              </td>
-              <td className={`px-4 py-2 text-right font-semibold ${sinUsarReal < 0 ? "text-red-600" : ""}`}>
-                {sinUsarReal < 0 ? `(${fmt(Math.abs(sinUsarReal))})` : fmt(sinUsarReal)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="text-gray-500 text-left">
+              <tr>
+                <th className="px-4 py-2"></th>
+                <th className="px-4 py-2 text-right">Presupuestado</th>
+                <th className="px-4 py-2 text-right">Real</th>
+              </tr>
+            </thead>
+            <tbody>
+              <FilaCategoria nombre="Ingresos" presupuesto={resumen.ingresos.estimado} real={resumen.ingresos.real} colorFondo="text-green-700" />
+              {categoriasSalida.map((c) => (
+                <FilaCategoria key={c.nombre} nombre={c.nombre} presupuesto={c.estimado} real={c.real} colorFondo="text-gray-700" />
+              ))}
+              <tr className="border-t-2 border-gray-300">
+                <td className="px-4 py-2 font-semibold">Sin usar</td>
+                <td className={`px-4 py-2 text-right font-semibold ${sinUsarEstimado < 0 ? "text-red-600" : ""}`}>
+                  {sinUsarEstimado < 0 ? `(${fmt(Math.abs(sinUsarEstimado))})` : fmt(sinUsarEstimado)}
+                </td>
+                <td className={`px-4 py-2 text-right font-semibold ${sinUsarReal < 0 ? "text-red-600" : ""}`}>
+                  {sinUsarReal < 0 ? `(${fmt(Math.abs(sinUsarReal))})` : fmt(sinUsarReal)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">Resumen del mes</div>
-        <table className="w-full text-sm">
-          <thead className="text-gray-500 text-left">
-            <tr>
-              <th className="px-4 py-1">Categoría</th>
-              <th className="px-4 py-1 text-right">Presupuesto</th>
-              <th className="px-4 py-1 text-right">Real</th>
-            </tr>
-          </thead>
-          <tbody>
-            <FilaCategoria nombre="Ingresos" presupuesto={resumen.ingresos.estimado} real={resumen.ingresos.real} colorFondo="" />
-            {categoriasSalida.map((c) => (
-              <FilaCategoria key={c.nombre} nombre={c.nombre} presupuesto={c.estimado} real={c.real} colorFondo="" />
-            ))}
-          </tbody>
-        </table>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">Resumen del mes</div>
+          <table className="w-full text-sm">
+            <thead className="text-gray-500 text-left">
+              <tr>
+                <th className="px-4 py-1">Categoría</th>
+                <th className="px-4 py-1 text-right">Presupuesto</th>
+                <th className="px-4 py-1 text-right">Real</th>
+              </tr>
+            </thead>
+            <tbody>
+              <FilaCategoria nombre="Ingresos" presupuesto={resumen.ingresos.estimado} real={resumen.ingresos.real} colorFondo="" />
+              {categoriasSalida.map((c) => (
+                <FilaCategoria key={c.nombre} nombre={c.nombre} presupuesto={c.estimado} real={c.real} colorFondo="" />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

@@ -261,7 +261,7 @@ export default function RegistroRapidoPage() {
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
                       {registrosConcepto.map((r) => (
-                        <span key={r.id} className="inline-flex items-center gap-1">
+                        <span key={r.id} className="inline-flex items-center gap-2">
                           <span className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700">
                             ${Number(r.monto).toFixed(2)}
                           </span>

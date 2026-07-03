@@ -416,13 +416,10 @@ export default function PresupuestoPage() {
               {estimadoVariables.map((c) => (
                 <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
                   <span className="flex-1">{c.nombre}</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <InputMonto
                     defaultValue={c.montoEstimado ?? ""}
                     placeholder="Estimado"
                     onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
-                    className="w-20 border border-gray-300 rounded px-2 py-1"
                   />
                   <input
                     type="text"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
@@ -198,15 +198,18 @@ export default function RegistroRapidoPage() {
       )}
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
-        <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-x-4 mb-3">
+          <h2 className="text-sm font-semibold text-gray-700">Botones rápidos</h2>
+          <h2 className="text-sm font-semibold text-gray-700">Hoy registraste</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           {CONCEPTOS.map((c) => {
             const config = botones.find((b) => b.concepto === c.valor);
             const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
             const registrosConcepto = registrosDelConcepto(c.valor);
             return (
-              <div key={c.valor} className="flex flex-col md:flex-row md:items-center gap-2 border-t border-gray-50 pt-3 first:border-0 first:pt-0">
-                <div className="md:w-64 shrink-0">
+              <Fragment key={c.valor}>
+                <div className="border-t border-gray-50 pt-3">
                   <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -249,28 +252,31 @@ export default function RegistroRapidoPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {registrosConcepto.map((r) => (
-                    <span
-                      key={r.id}
-                      className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 text-xs text-gray-700"
-                    >
-                      ${Number(r.monto).toFixed(2)}
-                      <button
-                        type="button"
-                        onClick={() => handleEliminarTracker(r.id)}
-                        title="Corregir / borrar"
-                        className="ml-1 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
+                <div className="border-t border-gray-50 pt-3">
+                  <p className="text-xs text-gray-500 mb-1 invisible">{c.etiqueta}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {registrosConcepto.map((r) => (
+                      <span
+                        key={r.id}
+                        className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 text-xs text-gray-700"
                       >
-                        🗑️
-                      </button>
-                    </span>
-                  ))}
-                  {registrosConcepto.length === 0 && (
-                    <span className="text-xs text-gray-300">Sin registros</span>
-                  )}
+                        ${Number(r.monto).toFixed(2)}
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarTracker(r.id)}
+                          title="Corregir / borrar"
+                          className="ml-1 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
+                        >
+                          🗑️
+                        </button>
+                      </span>
+                    ))}
+                    {registrosConcepto.length === 0 && (
+                      <span className="text-xs text-gray-300">Sin registros</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </Fragment>
             );
           })}
         </div>

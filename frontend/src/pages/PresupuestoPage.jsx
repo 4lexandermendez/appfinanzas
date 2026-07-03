@@ -58,6 +58,15 @@ function IconoDesactivar() {
   );
 }
 
+function InputMonto({ className = "w-20", ...props }) {
+  return (
+    <div className={`relative ${className}`}>
+      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+      <input type="number" step="0.01" {...props} className="w-full border border-gray-300 rounded pl-4 pr-1 py-1" />
+    </div>
+  );
+}
+
 function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "Estimado" }) {
   const [nombre, setNombre] = useState("");
   const [montoEstimado, setMontoEstimado] = useState("");
@@ -351,21 +360,15 @@ export default function PresupuestoPage() {
               {gastosFijos.map((g) => (
                 <div key={g.gastoFijoConfigId} className="flex items-center gap-2 text-sm">
                   <span className="flex-1">{g.nombre}</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <InputMonto
                     placeholder="Estimado"
                     defaultValue={g.montoEstimado ?? ""}
                     onBlur={(e) => handleEstimadoGastoFijo(g.gastoFijoConfigId, e.target.value)}
-                    className="w-20 border border-gray-300 rounded px-2 py-1"
                   />
-                  <input
-                    type="number"
-                    step="0.01"
+                  <InputMonto
                     placeholder="Real"
                     defaultValue={g.montoReal ?? ""}
                     onBlur={(e) => handleRealGastoFijo(g.gastoFijoConfigId, e.target.value)}
-                    className="w-20 border border-gray-300 rounded px-2 py-1"
                   />
                   <button
                     onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}

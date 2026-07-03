@@ -279,9 +279,6 @@ export default function PresupuestoPage() {
         <section className="bg-white rounded-lg shadow overflow-hidden">
           <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Deudas</h2>
           <div className="p-6">
-            <p className="text-xs text-gray-400 mb-3">
-              "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
-            </p>
             <div className="space-y-2">
               {deudas.map((d) => (
                 <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>

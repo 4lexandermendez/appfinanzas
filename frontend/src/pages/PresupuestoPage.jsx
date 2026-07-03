@@ -6,8 +6,8 @@ import {
   listarAhorros, crearAhorro, actualizarAhorro, eliminarAhorro,
 } from "../api/ahorros";
 import {
-  listarGastosFijosConfig, crearGastoFijo, actualizarGastoFijo, eliminarGastoFijo,
-  guardarGastoFijoMensual,
+  crearGastoFijo, actualizarGastoFijo, eliminarGastoFijo,
+  listarGastosFijosMensual, guardarGastoFijoMensual,
 } from "../api/gastosFijos";
 import {
   listarDeudasConfig, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
@@ -76,22 +76,24 @@ export default function PresupuestoPage() {
   const [ingresos, setIngresos] = useState([]);
   const [ahorros, setAhorros] = useState([]);
   const [gastosFijos, setGastosFijos] = useState([]);
+  const [sugerenciasFijos, setSugerenciasFijos] = useState([]);
   const [deudas, setDeudas] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   async function cargarTodo() {
     setCargando(true);
-    const [i, a, g, d, ev] = await Promise.all([
+    const [i, a, gf, d, ev] = await Promise.all([
       listarIngresos(anio, mes),
       listarAhorros(anio, mes),
-      listarGastosFijosConfig(),
+      listarGastosFijosMensual(anio, mes),
       listarDeudasConfig(),
       listarEstimadoVariables(anio, mes),
     ]);
     setIngresos(i);
     setAhorros(a);
-    setGastosFijos(g);
+    setGastosFijos(gf.gastosFijos);
+    setSugerenciasFijos(gf.sugerencias);
     setDeudas(d);
     setEstimadoVariables(ev.filter((c) => !c.esDefault));
     setCargando(false);
@@ -132,8 +134,8 @@ export default function PresupuestoPage() {
     await crearGastoFijo(datos);
     cargarTodo();
   }
-  async function handleToggleActivo(id, activo) {
-    await actualizarGastoFijo(id, { activo: !activo });
+  async function handleDesactivarGastoFijo(id) {
+    await actualizarGastoFijo(id, { activo: false });
     cargarTodo();
   }
   async function handleEliminarGastoFijo(id) {
@@ -143,6 +145,19 @@ export default function PresupuestoPage() {
   async function handleRealGastoFijo(gastoFijoConfigId, montoReal) {
     if (montoReal === "") return;
     await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoReal: Number(montoReal) });
+    cargarTodo();
+  }
+  async function handleEstimadoGastoFijo(gastoFijoConfigId, montoEstimado) {
+    if (montoEstimado === "") return;
+    await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado: Number(montoEstimado) });
+    cargarTodo();
+  }
+  async function handleAgregarSugerenciaFijo(gastoFijoConfigId, montoSugerido) {
+    const respuesta = window.prompt(`¿Con qué monto lo agrego este mes?`, Number(montoSugerido).toFixed(2));
+    if (respuesta === null || respuesta === "") return;
+    const monto = Number(respuesta);
+    if (!Number.isFinite(monto) || monto < 0) return;
+    await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado: monto });
     cargarTodo();
   }
 
@@ -264,34 +279,63 @@ export default function PresupuestoPage() {
         <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>
         <div className="p-6">
           <p className="text-xs text-gray-400 mb-3">
-            Lista reutilizable. Deshabilitar no borra el histórico, solo lo oculta del mes.
+            Solo cuentan para el Estimado del mes los que agregaste explícitamente. Desactivar deja de sugerirlo en
+            meses futuros, pero no borra el histórico ya registrado.
           </p>
           <div className="space-y-2">
             {gastosFijos.map((g) => (
-              <div key={g.id} className={`flex items-center gap-2 text-sm ${!g.activo ? "opacity-40" : ""}`}>
+              <div key={g.gastoFijoConfigId} className="flex items-center gap-2 text-sm">
                 <span className="flex-1">{g.nombre}</span>
-                <span className="text-gray-400">Est. ${Number(g.montoEstimado).toFixed(2)}</span>
-                {estaVigenteEnMes(g, anio, mes) ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Real del mes"
-                    onBlur={(e) => handleRealGastoFijo(g.id, e.target.value)}
-                    className="w-28 border border-gray-300 rounded px-2 py-1"
-                  />
-                ) : (
-                  <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
-                )}
-                <button onClick={() => handleToggleActivo(g.id, g.activo)} className="text-purple-600 hover:underline">
-                  {g.activo ? "Deshabilitar" : "Reactivar"}
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Estimado"
+                  defaultValue={g.montoEstimado ?? ""}
+                  onBlur={(e) => handleEstimadoGastoFijo(g.gastoFijoConfigId, e.target.value)}
+                  className="w-24 border border-gray-300 rounded px-2 py-1"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Real del mes"
+                  defaultValue={g.montoReal ?? ""}
+                  onBlur={(e) => handleRealGastoFijo(g.gastoFijoConfigId, e.target.value)}
+                  className="w-28 border border-gray-300 rounded px-2 py-1"
+                />
+                <button
+                  onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}
+                  className="text-purple-600 hover:underline"
+                >
+                  Desactivar
                 </button>
-                <button onClick={() => handleEliminarGastoFijo(g.id)} className="text-red-500 hover:underline">
+                <button onClick={() => handleEliminarGastoFijo(g.gastoFijoConfigId)} className="text-red-500 hover:underline">
                   Eliminar
                 </button>
               </div>
             ))}
-            {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos configurados</p>}
+            {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos agregados este mes</p>}
           </div>
+
+          {sugerenciasFijos.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400 mb-2">Sugeridos (de otros meses) — agregalos si aplica este mes:</p>
+              <div className="space-y-2">
+                {sugerenciasFijos.map((s) => (
+                  <div key={s.gastoFijoConfigId} className="flex items-center gap-2 text-sm text-gray-500">
+                    <span className="flex-1">{s.nombre}</span>
+                    <span>${Number(s.montoSugerido).toFixed(2)}</span>
+                    <button
+                      onClick={() => handleAgregarSugerenciaFijo(s.gastoFijoConfigId, s.montoSugerido)}
+                      className="text-purple-600 hover:underline"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
         </div>
       </section>

@@ -104,7 +104,7 @@ export default function MesPage() {
       setResumen(r);
       setIngresos(i);
       setAhorros(a);
-      setGastosFijos(gf);
+      setGastosFijos(gf.gastosFijos);
       setDeudas(d);
       setTransacciones(t);
       setNotas(n);

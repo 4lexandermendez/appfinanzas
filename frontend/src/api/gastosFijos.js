@@ -21,10 +21,10 @@ export async function eliminarGastoFijo(id) {
 
 export async function listarGastosFijosMensual(anio, mes) {
   const { data } = await client.get("/gastos-fijos/mensual", { params: { anio, mes } });
-  return data.gastosFijos;
+  return data;
 }
 
-export async function guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoReal }) {
-  const { data } = await client.put("/gastos-fijos/mensual", { gastoFijoConfigId, anio, mes, montoReal });
+export async function guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado, montoReal }) {
+  const { data } = await client.put("/gastos-fijos/mensual", { gastoFijoConfigId, anio, mes, montoEstimado, montoReal });
   return data.registro;
 }

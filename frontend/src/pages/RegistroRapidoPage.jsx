@@ -82,7 +82,7 @@ export default function RegistroRapidoPage() {
     setBotones(botonesData);
     setCategorias(categoriasData);
     setRegistrosMes(trackerMes);
-    setGastosFijos(gastosFijosData);
+    setGastosFijos(gastosFijosData.gastosFijos);
   }
 
   useEffect(() => {

@@ -15,11 +15,10 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     where: { usuarioId_anio_mes: { usuarioId, anio, mes } },
   });
 
-  const [ingresos, ahorros, gastosFijosConfig, gastosFijosMensual, transacciones, estimadosVariables, deudasConfig, deudasMensual] =
+  const [ingresos, ahorros, gastosFijosMensual, transacciones, estimadosVariables, deudasConfig, deudasMensual] =
     await Promise.all([
       presupuesto ? prisma.ingreso.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.ahorro.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-      prisma.gastoFijoConfig.findMany({ where: { usuarioId } }),
       presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
@@ -35,9 +34,11 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     estimado: redondear(ahorros.reduce((s, a) => s + Number(a.montoEstimado), 0)),
     real: redondear(ahorros.reduce((s, a) => s + Number(a.montoReal || 0), 0)),
   };
-  const gastosFijosVigentes = gastosFijosConfig.filter((g) => estaVigenteEnMes(g, anio, mes));
+  // El estimado de gastos fijos ya no se proyecta automáticamente por
+  // fecha: solo cuenta lo que el usuario seleccionó explícitamente para
+  // este mes (fila en gastos_fijos_mensual, ver listarMensual).
   const gastosFijosResumen = {
-    estimado: redondear(gastosFijosVigentes.reduce((s, g) => s + Number(g.montoEstimado), 0)),
+    estimado: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoEstimado || 0), 0)),
     real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
   };
 

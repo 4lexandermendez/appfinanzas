@@ -1,7 +1,6 @@
 const prisma = require("../lib/prisma");
 const { redondear } = require("../utils/dinero");
 const { formatDateKey } = require("../utils/fecha");
-const { estaVigenteEnMes } = require("../utils/vigencia");
 const { calcularEstimadoMesPuro } = require("./estimadoTrackerService");
 const { listarCategorias } = require("./categoriaService");
 
@@ -32,7 +31,7 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
   const inicioAnio = new Date(Date.UTC(anio, 0, 1));
   const finAnio = new Date(Date.UTC(anio, 11, 31));
 
-  const [ajuste, diasLibres, presupuestos, gastosFijosConfig, categorias] = await Promise.all([
+  const [ajuste, diasLibres, presupuestos, categorias] = await Promise.all([
     prisma.ajusteTracker.findUnique({ where: { usuarioId } }),
     prisma.diaLibre.findMany({ where: { usuarioId, fecha: { gte: inicioAnio, lte: finAnio } } }),
     prisma.presupuestoMensual.findMany({
@@ -47,7 +46,6 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
         categoriasVariablesMes: true,
       },
     }),
-    prisma.gastoFijoConfig.findMany({ where: { usuarioId } }),
     listarCategorias(usuarioId),
   ]);
 
@@ -70,11 +68,10 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
 
     agregarMes(resultado.ingresos, mes, sumar(p?.ingresos || [], "montoEstimado"), sumar(p?.ingresos || [], "montoReal"));
     agregarMes(resultado.ahorros, mes, sumar(p?.ahorros || [], "montoEstimado"), sumar(p?.ahorros || [], "montoReal"));
-    const gastosFijosVigentes = gastosFijosConfig.filter((g) => estaVigenteEnMes(g, anio, mes));
     agregarMes(
       resultado.gastosFijos,
       mes,
-      sumar(gastosFijosVigentes, "montoEstimado"),
+      sumar(p?.gastosFijosMes || [], "montoEstimado"),
       sumar(p?.gastosFijosMes || [], "montoReal")
     );
     agregarMes(resultado.deudas, mes, sumar(p?.deudasMes || [], "montoEstimado"), sumar(p?.deudasMes || [], "montoReal"));

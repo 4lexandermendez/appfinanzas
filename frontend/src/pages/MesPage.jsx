@@ -16,7 +16,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#f97316" };
+const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#be185d" };
 
 function hoy() {
   const d = new Date();

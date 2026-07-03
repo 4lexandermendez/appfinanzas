@@ -4,3 +4,12 @@ export async function crearTransaccion({ categoriaId, monto, fecha, notas }) {
   const { data } = await client.post("/transacciones", { categoriaId, monto, fecha, notas });
   return data.transaccion;
 }
+
+export async function listarTransacciones(anio, mes) {
+  const { data } = await client.get("/transacciones", { params: { anio, mes } });
+  return data.transacciones;
+}
+
+export async function eliminarTransaccion(id) {
+  await client.delete(`/transacciones/${id}`);
+}

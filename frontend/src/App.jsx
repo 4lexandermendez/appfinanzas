@@ -9,6 +9,7 @@ import AlertasPage from "./pages/AlertasPage";
 import ResumenAnualPage from "./pages/ResumenAnualPage";
 import MetasAhorroPage from "./pages/MetasAhorroPage";
 import AjustesPage from "./pages/AjustesPage";
+import MesPage from "./pages/MesPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
@@ -33,6 +34,7 @@ function App() {
         <Route path="anual" element={<ResumenAnualPage />} />
         <Route path="metas" element={<MetasAhorroPage />} />
         <Route path="ajustes" element={<AjustesPage />} />
+        <Route path="mes" element={<MesPage />} />
       </Route>
     </Routes>
   );

@@ -4,6 +4,7 @@ import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
+import AutocompletadoCategoria from "../components/AutocompletadoCategoria";
 
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
@@ -26,8 +27,8 @@ export default function RegistroRapidoPage() {
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
 
-  const [categoriaId, setCategoriaId] = useState("");
-  const [categoriaNueva, setCategoriaNueva] = useState("");
+  const [categoriaId, setCategoriaId] = useState(null);
+  const [categoriaTexto, setCategoriaTexto] = useState("");
   const [monto, setMonto] = useState("");
   const [nota, setNota] = useState("");
   const [enviandoForm, setEnviandoForm] = useState(false);
@@ -75,9 +76,11 @@ export default function RegistroRapidoPage() {
     setEnviandoForm(true);
     try {
       let idCategoria = categoriaId;
-      if (!idCategoria && categoriaNueva.trim()) {
-        const nueva = await crearCategoria(categoriaNueva.trim());
-        idCategoria = nueva.id;
+      if (!idCategoria && categoriaTexto.trim()) {
+        const existente = categorias.find(
+          (c) => c.nombre.toLowerCase() === categoriaTexto.trim().toLowerCase()
+        );
+        idCategoria = existente ? existente.id : (await crearCategoria(categoriaTexto.trim())).id;
       }
       if (!idCategoria) {
         setMensaje("Elige o escribe una categoría");
@@ -86,8 +89,8 @@ export default function RegistroRapidoPage() {
       await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: hoyISO(), notas: nota });
       setMonto("");
       setNota("");
-      setCategoriaNueva("");
-      setCategoriaId("");
+      setCategoriaTexto("");
+      setCategoriaId(null);
       const [totales, categoriasData] = await Promise.all([obtenerGastadoHoy(), listarCategorias()]);
       setGastadoHoy(totales.totalHoy);
       setCategorias(categoriasData);
@@ -173,30 +176,14 @@ export default function RegistroRapidoPage() {
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-          <select
-            value={categoriaId}
-            onChange={(e) => {
-              setCategoriaId(e.target.value);
-              setCategoriaNueva("");
+          <AutocompletadoCategoria
+            categorias={categorias}
+            valor={categoriaTexto}
+            onChange={(texto, id) => {
+              setCategoriaTexto(texto);
+              setCategoriaId(id);
             }}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-          >
-            <option value="">-- Elegir categoría existente --</option>
-            {categorias.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.nombre}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="...o escribe una categoría nueva"
-            value={categoriaNueva}
-            onChange={(e) => {
-              setCategoriaNueva(e.target.value);
-              setCategoriaId("");
-            }}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+            placeholder="Ej. Netflix (empezá a escribir para ver sugerencias)"
           />
         </div>
 

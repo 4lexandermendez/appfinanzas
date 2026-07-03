@@ -34,6 +34,30 @@ function estaVigenteEnMes(item, anio, mes) {
   return true;
 }
 
+function IconoEliminar() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path
+        fillRule="evenodd"
+        d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.5h-2.5a.75.75 0 0 0 0 1.5h.54l.83 10.78A2.75 2.75 0 0 0 7.61 19h4.78a2.75 2.75 0 0 0 2.74-2.47l.83-10.78h.54a.75.75 0 0 0 0-1.5H14v-.5A2.75 2.75 0 0 0 11.25 1h-2.5ZM11.5 4.25v-.5a1.25 1.25 0 0 0-1.25-1.25h-.5A1.25 1.25 0 0 0 8.5 3.75v.5h3ZM8 8a.75.75 0 0 1 .75.75v6.5a.75.75 0 0 1-1.5 0v-6.5A.75.75 0 0 1 8 8Zm4.75.75a.75.75 0 0 0-1.5 0v6.5a.75.75 0 0 0 1.5 0v-6.5Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function IconoDesactivar() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+      <path
+        fillRule="evenodd"
+        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.06-9.94a.75.75 0 1 0-1.06-1.06L10 8.94 8 6.94a.75.75 0 1 0-1.06 1.06L8.94 10 6.94 12a.75.75 0 1 0 1.06 1.06L10 11.06l2 2a.75.75 0 1 0 1.06-1.06L11.06 10l2-2Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "Estimado" }) {
   const [nombre, setNombre] = useState("");
   const [montoEstimado, setMontoEstimado] = useState("");
@@ -319,93 +343,103 @@ export default function PresupuestoPage() {
         </section>
       </div>
 
-      <section className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>
-        <div className="p-6">
-          <div className="space-y-2">
-            {gastosFijos.map((g) => (
-              <div key={g.gastoFijoConfigId} className="flex items-center gap-2 text-sm">
-                <span className="flex-1">{g.nombre}</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Estimado"
-                  defaultValue={g.montoEstimado ?? ""}
-                  onBlur={(e) => handleEstimadoGastoFijo(g.gastoFijoConfigId, e.target.value)}
-                  className="w-24 border border-gray-300 rounded px-2 py-1"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Real del mes"
-                  defaultValue={g.montoReal ?? ""}
-                  onBlur={(e) => handleRealGastoFijo(g.gastoFijoConfigId, e.target.value)}
-                  className="w-28 border border-gray-300 rounded px-2 py-1"
-                />
-                <button
-                  onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}
-                  className="text-purple-600 hover:underline"
-                >
-                  Desactivar
-                </button>
-                <button onClick={() => handleEliminarGastoFijo(g.gastoFijoConfigId)} className="text-red-500 hover:underline">
-                  Eliminar
-                </button>
-              </div>
-            ))}
-            {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos agregados este mes</p>}
-          </div>
-
-          {sugerenciasFijos.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-400 mb-2">Sugeridos (de otros meses) — agregalos si aplica este mes:</p>
-              <div className="space-y-2">
-                {sugerenciasFijos.map((s) => (
-                  <div key={s.gastoFijoConfigId} className="flex items-center gap-2 text-sm text-gray-500">
-                    <span className="flex-1">{s.nombre}</span>
-                    <span>${Number(s.montoSugerido).toFixed(2)}</span>
-                    <button
-                      onClick={() => handleAgregarSugerenciaFijo(s.gastoFijoConfigId, s.montoSugerido)}
-                      className="text-purple-600 hover:underline"
-                    >
-                      Agregar
-                    </button>
-                  </div>
-                ))}
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="bg-white rounded-lg shadow overflow-hidden">
+          <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>
+          <div className="p-6">
+            <div className="space-y-2">
+              {gastosFijos.map((g) => (
+                <div key={g.gastoFijoConfigId} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{g.nombre}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Estimado"
+                    defaultValue={g.montoEstimado ?? ""}
+                    onBlur={(e) => handleEstimadoGastoFijo(g.gastoFijoConfigId, e.target.value)}
+                    className="w-20 border border-gray-300 rounded px-2 py-1"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Real"
+                    defaultValue={g.montoReal ?? ""}
+                    onBlur={(e) => handleRealGastoFijo(g.gastoFijoConfigId, e.target.value)}
+                    className="w-20 border border-gray-300 rounded px-2 py-1"
+                  />
+                  <button
+                    onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}
+                    title="Desactivar"
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    <IconoDesactivar />
+                  </button>
+                  <button onClick={() => handleEliminarGastoFijo(g.gastoFijoConfigId)} title="Eliminar" className="text-red-500 hover:text-red-700">
+                    <IconoEliminar />
+                  </button>
+                </div>
+              ))}
+              {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos agregados este mes</p>}
             </div>
-          )}
 
-          <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
-        </div>
-      </section>
-
-      <section className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="px-6 py-2 font-semibold text-sm bg-yellow-100 text-yellow-800">Gastos variables (estimado)</h2>
-        <div className="p-6">
-          <div className="space-y-2">
-            {estimadoVariables.map((c) => (
-              <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
-                <span className="flex-1">{c.nombre}</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  defaultValue={c.montoEstimado ?? ""}
-                  placeholder="Estimado"
-                  onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
-                  className="w-28 border border-gray-300 rounded px-2 py-1"
-                />
+            {sugerenciasFijos.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400 mb-2">Sugeridos (de otros meses) — agregalos si aplica este mes:</p>
+                <div className="space-y-2">
+                  {sugerenciasFijos.map((s) => (
+                    <div key={s.gastoFijoConfigId} className="flex items-center gap-2 text-sm text-gray-500">
+                      <span className="flex-1">{s.nombre}</span>
+                      <span>${Number(s.montoSugerido).toFixed(2)}</span>
+                      <button
+                        onClick={() => handleAgregarSugerenciaFijo(s.gastoFijoConfigId, s.montoSugerido)}
+                        className="text-purple-600 hover:underline"
+                      >
+                        Agregar
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-            {estimadoVariables.length === 0 && (
-              <p className="text-sm text-gray-400">
-                Todavía no tenés ningún gasto variable este mes (fuera de Transporte/Comida).
-              </p>
             )}
+
+            <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
           </div>
-          <NuevoItemForm onSubmit={handleNuevoGastoVariable} placeholder="Ej. Temu" />
-        </div>
-      </section>
+        </section>
+
+        <section className="bg-white rounded-lg shadow overflow-hidden">
+          <h2 className="px-6 py-2 font-semibold text-sm bg-yellow-100 text-yellow-800">Gastos variables (estimado)</h2>
+          <div className="p-6">
+            <div className="space-y-2">
+              {estimadoVariables.map((c) => (
+                <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{c.nombre}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    defaultValue={c.montoEstimado ?? ""}
+                    placeholder="Estimado"
+                    onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
+                    className="w-20 border border-gray-300 rounded px-2 py-1"
+                  />
+                  <input
+                    type="text"
+                    readOnly
+                    title="Real: suma de lo registrado en Registro Rápido este mes"
+                    value={`$${Number(c.montoReal || 0).toFixed(2)}`}
+                    className="w-20 border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-500"
+                  />
+                </div>
+              ))}
+              {estimadoVariables.length === 0 && (
+                <p className="text-sm text-gray-400">
+                  Todavía no tenés ningún gasto variable este mes (fuera de Transporte/Comida).
+                </p>
+              )}
+            </div>
+            <NuevoItemForm onSubmit={handleNuevoGastoVariable} placeholder="Ej. Temu" />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

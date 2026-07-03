@@ -13,16 +13,25 @@ async function listar(req, res) {
   const presupuesto = await prisma.presupuestoMensual.findUnique({
     where: { usuarioId_anio_mes: { usuarioId: req.usuarioId, anio, mes } },
   });
-  const registros = presupuesto
-    ? await prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } })
-    : [];
+  const [registros, transacciones] = await Promise.all([
+    presupuesto
+      ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } })
+      : [],
+    presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+  ]);
   const porCategoria = new Map(registros.map((r) => [r.categoriaId, r.montoEstimado]));
+  const realPorCategoria = new Map();
+  for (const t of transacciones) {
+    const previo = realPorCategoria.get(t.categoriaId) || 0;
+    realPorCategoria.set(t.categoriaId, previo + Number(t.monto));
+  }
 
   const resultado = categorias.map((c) => ({
     categoriaId: c.id,
     nombre: c.nombre,
     esDefault: c.esDefault,
     montoEstimado: porCategoria.has(c.id) ? porCategoria.get(c.id) : null,
+    montoReal: realPorCategoria.get(c.id) || 0,
   }));
 
   res.json({ categorias: resultado });

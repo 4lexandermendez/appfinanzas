@@ -76,7 +76,7 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
     let transporteEstimado = 0;
     let comidaEstimado = 0;
     if (ajuste) {
-      const est = calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, p?.trackerDiario || []);
+      const est = calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes);
       transporteEstimado = redondear(est.totalPorConcepto.PASAJE_IDA + est.totalPorConcepto.PASAJE_REGRESO);
       comidaEstimado = redondear(est.totalPorConcepto.DESAYUNO + est.totalPorConcepto.ALMUERZO);
     }

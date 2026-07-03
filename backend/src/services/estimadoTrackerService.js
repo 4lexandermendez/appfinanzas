@@ -9,21 +9,15 @@ const CONCEPTOS_TRANSPORTE = new Set(["PASAJE_IDA", "PASAJE_REGRESO"]);
 // cargado en memoria. Permite reutilizar el cálculo para un año completo
 // sin repetir 12 veces las mismas consultas (ajuste, días libres, etc.).
 //
-// Para días ya pasados con registro real en el Tracker Diario, se usa el monto
-// real registrado ese día en vez del monto actual de Ajustes. Así, si el usuario
-// cambia un monto hoy, no se reescribe retroactivamente el estimado de días que
-// ya pasaron y para los que no hay real, se muestra el monto vigente al momento
-// del cálculo (aproximación: no existe un historial de montos por fecha).
-function calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, registrosTracker) {
-  const realesPorClave = new Map();
-  for (const r of registrosTracker) {
-    const clave = `${formatDateKey(r.fecha)}_${r.concepto}`;
-    const previo = realesPorClave.get(clave) || 0;
-    realesPorClave.set(clave, previo + Number(r.monto));
-  }
-
-  const hoy = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
-
+// El Estimado es una proyección fija del calendario (Ajustes + patrón de
+// sábados + días libres) y NO se mezcla con lo ya registrado en el Tracker
+// Diario: si se sustituyera por el real de días pasados, el "Estimado"
+// bajaría cada vez que el usuario registrara algo (incluyendo el botón $0),
+// perdiendo su función de ser un presupuesto estable contra el cual comparar
+// el Real. La limitación conocida es que, si el usuario cambia un monto en
+// Ajustes a mitad de mes, ese cambio sí afecta retroactivamente el estimado
+// de los días ya pasados (no existe un historial de montos por fecha).
+function calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes) {
   const totalPorConcepto = { PASAJE_IDA: 0, DESAYUNO: 0, ALMUERZO: 0, PASAJE_REGRESO: 0 };
   const quincenas = [
     { quincena: 1, estimado: 0, transporte: 0, comida: 0 },
@@ -37,14 +31,8 @@ function calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, registrosTrac
     const fecha = new Date(Date.UTC(anio, mes - 1, d));
     const tipo = tipoDeDia(fecha, ajuste, diasLibresSet);
     const conceptosBase = conceptosParaTipo(tipo, ajuste);
-    const esPasado = fecha < hoy;
 
-    const items = conceptosBase.map((c) => {
-      const clave = `${formatDateKey(fecha)}_${c.concepto}`;
-      const real = realesPorClave.get(clave);
-      const usaReal = esPasado && real !== undefined;
-      return { concepto: c.concepto, monto: usaReal ? real : c.monto, esReal: usaReal };
-    });
+    const items = conceptosBase.map((c) => ({ concepto: c.concepto, monto: c.monto, esReal: false }));
 
     const totalDia = redondear(items.reduce((s, i) => s + i.monto, 0));
     for (const i of items) totalPorConcepto[i.concepto] = redondear(totalPorConcepto[i.concepto] + i.monto);
@@ -74,15 +62,7 @@ async function calcularEstimadoMes(usuarioId, anio, mes) {
   });
   const diasLibresSet = new Set(diasLibres.map((d) => formatDateKey(d.fecha)));
 
-  const presupuesto = await prisma.presupuestoMensual.findUnique({
-    where: { usuarioId_anio_mes: { usuarioId, anio, mes } },
-  });
-
-  const registros = presupuesto
-    ? await prisma.trackerDiario.findMany({ where: { presupuestoId: presupuesto.id } })
-    : [];
-
-  return calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, registros);
+  return calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes);
 }
 
 module.exports = { calcularEstimadoMes, calcularEstimadoMesPuro, CONCEPTOS_TRANSPORTE };

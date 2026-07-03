@@ -184,155 +184,165 @@ export default function PresupuestoPage() {
         </select>
       </div>
 
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Ingresos</h2>
-        <div className="space-y-2">
-          {ingresos.map((i) => (
-            <div key={i.id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1">{i.nombre}</span>
-              <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
-              <input
-                type="number"
-                step="0.01"
-                defaultValue={i.montoReal ?? ""}
-                placeholder="Real"
-                onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
-                className="w-24 border border-gray-300 rounded px-2 py-1"
-              />
-              <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
-                Eliminar
-              </button>
-            </div>
-          ))}
-          {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
-        </div>
-        <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
-      </section>
-
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Ahorros</h2>
-        <div className="space-y-2">
-          {ahorros.map((a) => (
-            <div key={a.id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1">{a.nombre}</span>
-              <span className="text-gray-400">Est. ${Number(a.montoEstimado).toFixed(2)}</span>
-              <input
-                type="number"
-                step="0.01"
-                defaultValue={a.montoReal ?? ""}
-                placeholder="Real"
-                onBlur={(e) => handleRealAhorro(a.id, e.target.value)}
-                className="w-24 border border-gray-300 rounded px-2 py-1"
-              />
-              <button onClick={() => handleEliminarAhorro(a.id)} className="text-red-500 hover:underline">
-                Eliminar
-              </button>
-            </div>
-          ))}
-          {ahorros.length === 0 && <p className="text-sm text-gray-400">Sin ahorros este mes</p>}
-        </div>
-        <NuevoItemForm onSubmit={handleNuevoAhorro} placeholder="Ej. Fondo de emergencia" />
-      </section>
-
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Gastos fijos</h2>
-        <p className="text-xs text-gray-400 mb-3">
-          Lista reutilizable. Deshabilitar no borra el histórico, solo lo oculta del mes.
-        </p>
-        <div className="space-y-2">
-          {gastosFijos.map((g) => (
-            <div key={g.id} className={`flex items-center gap-2 text-sm ${!g.activo ? "opacity-40" : ""}`}>
-              <span className="flex-1">{g.nombre}</span>
-              <span className="text-gray-400">Est. ${Number(g.montoEstimado).toFixed(2)}</span>
-              {g.activo && (
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-green-100 text-green-800">Ingresos</h2>
+        <div className="p-6">
+          <div className="space-y-2">
+            {ingresos.map((i) => (
+              <div key={i.id} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{i.nombre}</span>
+                <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="Real del mes"
-                  onBlur={(e) => handleRealGastoFijo(g.id, e.target.value)}
-                  className="w-28 border border-gray-300 rounded px-2 py-1"
+                  defaultValue={i.montoReal ?? ""}
+                  placeholder="Real"
+                  onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
+                  className="w-24 border border-gray-300 rounded px-2 py-1"
                 />
-              )}
-              <button onClick={() => handleToggleActivo(g.id, g.activo)} className="text-purple-600 hover:underline">
-                {g.activo ? "Deshabilitar" : "Reactivar"}
-              </button>
-              <button onClick={() => handleEliminarGastoFijo(g.id)} className="text-red-500 hover:underline">
-                Eliminar
-              </button>
-            </div>
-          ))}
-          {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos configurados</p>}
+                <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+            {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
+          </div>
+          <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
         </div>
-        <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
       </section>
 
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Deudas</h2>
-        <p className="text-xs text-gray-400 mb-3">
-          "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
-        </p>
-        <div className="space-y-2">
-          {deudas.map((d) => (
-            <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
-              <span className="flex-1">{d.nombre}</span>
-              <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
-              {d.activo && (
-                <>
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-blue-100 text-blue-800">Ahorros</h2>
+        <div className="p-6">
+          <div className="space-y-2">
+            {ahorros.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{a.nombre}</span>
+                <span className="text-gray-400">Est. ${Number(a.montoEstimado).toFixed(2)}</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  defaultValue={a.montoReal ?? ""}
+                  placeholder="Real"
+                  onBlur={(e) => handleRealAhorro(a.id, e.target.value)}
+                  className="w-24 border border-gray-300 rounded px-2 py-1"
+                />
+                <button onClick={() => handleEliminarAhorro(a.id)} className="text-red-500 hover:underline">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+            {ahorros.length === 0 && <p className="text-sm text-gray-400">Sin ahorros este mes</p>}
+          </div>
+          <NuevoItemForm onSubmit={handleNuevoAhorro} placeholder="Ej. Fondo de emergencia" />
+        </div>
+      </section>
+
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>
+        <div className="p-6">
+          <p className="text-xs text-gray-400 mb-3">
+            Lista reutilizable. Deshabilitar no borra el histórico, solo lo oculta del mes.
+          </p>
+          <div className="space-y-2">
+            {gastosFijos.map((g) => (
+              <div key={g.id} className={`flex items-center gap-2 text-sm ${!g.activo ? "opacity-40" : ""}`}>
+                <span className="flex-1">{g.nombre}</span>
+                <span className="text-gray-400">Est. ${Number(g.montoEstimado).toFixed(2)}</span>
+                {g.activo && (
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Estimado del mes"
-                    onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
+                    placeholder="Real del mes"
+                    onBlur={(e) => handleRealGastoFijo(g.id, e.target.value)}
                     className="w-28 border border-gray-300 rounded px-2 py-1"
                   />
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Real (pago)"
-                    onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
-                    className="w-24 border border-gray-300 rounded px-2 py-1"
-                  />
-                </>
-              )}
-              <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
-                {d.activo ? "Deshabilitar" : "Reactivar"}
-              </button>
-              <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
-                Eliminar
-              </button>
-            </div>
-          ))}
-          {deudas.length === 0 && <p className="text-sm text-gray-400">Sin deudas registradas</p>}
+                )}
+                <button onClick={() => handleToggleActivo(g.id, g.activo)} className="text-purple-600 hover:underline">
+                  {g.activo ? "Deshabilitar" : "Reactivar"}
+                </button>
+                <button onClick={() => handleEliminarGastoFijo(g.id)} className="text-red-500 hover:underline">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+            {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos configurados</p>}
+          </div>
+          <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
         </div>
-        <NuevoItemForm onSubmit={handleNuevaDeuda} placeholder="Ej. Préstamo moto" placeholderMonto="Saldo actual" />
       </section>
 
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Gastos variables (estimado)</h2>
-        <p className="text-xs text-gray-400 mb-3">
-          Transporte y Comida usan el estimado automático del Tracker. Acá va el estimado del resto (Temu,
-          Universidad, etc.) — el nombre se autocompleta desde tu historial al registrar el gasto real en
-          Registro Rápido.
-        </p>
-        <div className="space-y-2">
-          {estimadoVariables.map((c) => (
-            <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
-              <span className="flex-1">{c.nombre}</span>
-              <input
-                type="number"
-                step="0.01"
-                defaultValue={c.montoEstimado ?? ""}
-                placeholder="Estimado"
-                onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
-                className="w-28 border border-gray-300 rounded px-2 py-1"
-              />
-            </div>
-          ))}
-          {estimadoVariables.length === 0 && (
-            <p className="text-sm text-gray-400">
-              Todavía no registraste ningún gasto variable este mes (fuera de Transporte/Comida).
-            </p>
-          )}
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Deudas</h2>
+        <div className="p-6">
+          <p className="text-xs text-gray-400 mb-3">
+            "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
+          </p>
+          <div className="space-y-2">
+            {deudas.map((d) => (
+              <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
+                <span className="flex-1">{d.nombre}</span>
+                <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
+                {d.activo && (
+                  <>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Estimado del mes"
+                      onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
+                      className="w-28 border border-gray-300 rounded px-2 py-1"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Real (pago)"
+                      onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
+                      className="w-24 border border-gray-300 rounded px-2 py-1"
+                    />
+                  </>
+                )}
+                <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
+                  {d.activo ? "Deshabilitar" : "Reactivar"}
+                </button>
+                <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+            {deudas.length === 0 && <p className="text-sm text-gray-400">Sin deudas registradas</p>}
+          </div>
+          <NuevoItemForm onSubmit={handleNuevaDeuda} placeholder="Ej. Préstamo moto" placeholderMonto="Saldo actual" />
+        </div>
+      </section>
+
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-yellow-100 text-yellow-800">Gastos variables (estimado)</h2>
+        <div className="p-6">
+          <p className="text-xs text-gray-400 mb-3">
+            Transporte y Comida usan el estimado automático del Tracker. Acá va el estimado del resto (Temu,
+            Universidad, etc.) — el nombre se autocompleta desde tu historial al registrar el gasto real en
+            Registro Rápido.
+          </p>
+          <div className="space-y-2">
+            {estimadoVariables.map((c) => (
+              <div key={c.categoriaId} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{c.nombre}</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  defaultValue={c.montoEstimado ?? ""}
+                  placeholder="Estimado"
+                  onBlur={(e) => handleEstimadoVariable(c.categoriaId, e.target.value)}
+                  className="w-28 border border-gray-300 rounded px-2 py-1"
+                />
+              </div>
+            ))}
+            {estimadoVariables.length === 0 && (
+              <p className="text-sm text-gray-400">
+                Todavía no registraste ningún gasto variable este mes (fuera de Transporte/Comida).
+              </p>
+            )}
+          </div>
         </div>
       </section>
     </div>

@@ -27,6 +27,11 @@ function fmt(v) {
   return `$${Number(v).toFixed(2)}`;
 }
 
+function fmtFecha(fechaISO) {
+  const [anio, mes, dia] = fechaISO.slice(0, 10).split("-");
+  return `${dia}/${mes}/${anio}`;
+}
+
 function FilaCategoria({ nombre, presupuesto, real, colorFondo }) {
   return (
     <tr className="border-t border-gray-100">
@@ -376,7 +381,7 @@ export default function MesPage() {
               <tr key={t.id} className="border-t border-gray-100">
                 <td className="px-4 py-1">{t.categoria.nombre}</td>
                 <td className="px-4 py-1 text-right">{fmt(t.monto)}</td>
-                <td className="px-4 py-1">{t.fecha.slice(0, 10)}</td>
+                <td className="px-4 py-1">{fmtFecha(t.fecha)}</td>
                 <td className="px-4 py-1">
                   <input
                     type="text"

@@ -17,11 +17,14 @@ export default function Layout() {
               <NavLink to="/" end className={linkClase}>
                 Registro rápido
               </NavLink>
-              <NavLink to="/dashboard" className={linkClase}>
-                Dashboard
+              <NavLink to="/anual" className={linkClase}>
+                Anual
               </NavLink>
               <NavLink to="/mes" className={linkClase}>
                 Mes
+              </NavLink>
+              <NavLink to="/dashboard" className={linkClase}>
+                Dashboard
               </NavLink>
               <NavLink to="/presupuesto" className={linkClase}>
                 Presupuesto
@@ -31,9 +34,6 @@ export default function Layout() {
               </NavLink>
               <NavLink to="/alertas" className={linkClase}>
                 Alertas
-              </NavLink>
-              <NavLink to="/anual" className={linkClase}>
-                Anual
               </NavLink>
               <NavLink to="/metas" className={linkClase}>
                 Metas

@@ -63,7 +63,6 @@ export default function RegistroRapidoPage() {
   const [categoriaId, setCategoriaId] = useState(null);
   const [categoriaTexto, setCategoriaTexto] = useState("");
   const [monto, setMonto] = useState("");
-  const [nota, setNota] = useState("");
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
 
@@ -146,9 +145,8 @@ export default function RegistroRapidoPage() {
         setMensaje("Elige o escribe una categoría");
         return;
       }
-      await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: fechaSeleccionada, notas: nota });
+      await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: fechaSeleccionada });
       setMonto("");
-      setNota("");
       setCategoriaTexto("");
       setCategoriaId(null);
       const [totales, categoriasData] = await Promise.all([obtenerGastadoHoy(fechaSeleccionada), listarCategorias()]);
@@ -348,22 +346,12 @@ export default function RegistroRapidoPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Nota (opcional)</label>
-            <input
-              type="text"
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            />
-          </div>
-
           <button
             type="submit"
             disabled={enviandoForm}
             className="w-full bg-purple-600 text-white rounded py-2 font-medium hover:bg-purple-700 disabled:opacity-50"
           >
-            {enviandoForm ? "Registrando..." : `Registrar (${fechaSeleccionada === hoyReal ? "hoy" : formatoFechaLarga(fechaSeleccionada)})`}
+            {enviandoForm ? "Registrando..." : "Marcar como pagado"}
           </button>
         </form>
 

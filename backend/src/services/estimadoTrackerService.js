@@ -5,35 +5,21 @@ const { tipoDeDia, conceptosParaTipo } = require("./calendarioService");
 
 const CONCEPTOS_TRANSPORTE = new Set(["PASAJE_IDA", "PASAJE_REGRESO"]);
 
+// Función pura (sin acceso a base de datos): recibe todo lo necesario ya
+// cargado en memoria. Permite reutilizar el cálculo para un año completo
+// sin repetir 12 veces las mismas consultas (ajuste, días libres, etc.).
+//
 // Para días ya pasados con registro real en el Tracker Diario, se usa el monto
 // real registrado ese día en vez del monto actual de Ajustes. Así, si el usuario
 // cambia un monto hoy, no se reescribe retroactivamente el estimado de días que
 // ya pasaron y para los que no hay real, se muestra el monto vigente al momento
 // del cálculo (aproximación: no existe un historial de montos por fecha).
-async function calcularEstimadoMes(usuarioId, anio, mes) {
-  const ajuste = await prisma.ajusteTracker.findUnique({ where: { usuarioId } });
-  if (!ajuste) return null;
-
-  const inicioMes = new Date(Date.UTC(anio, mes - 1, 1));
-  const finMes = new Date(Date.UTC(anio, mes - 1, diasEnMes(anio, mes)));
-
-  const diasLibres = await prisma.diaLibre.findMany({
-    where: { usuarioId, fecha: { gte: inicioMes, lte: finMes } },
-  });
-  const diasLibresSet = new Set(diasLibres.map((d) => formatDateKey(d.fecha)));
-
-  const presupuesto = await prisma.presupuestoMensual.findUnique({
-    where: { usuarioId_anio_mes: { usuarioId, anio, mes } },
-  });
-
+function calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, registrosTracker) {
   const realesPorClave = new Map();
-  if (presupuesto) {
-    const registros = await prisma.trackerDiario.findMany({ where: { presupuestoId: presupuesto.id } });
-    for (const r of registros) {
-      const clave = `${formatDateKey(r.fecha)}_${r.concepto}`;
-      const previo = realesPorClave.get(clave) || 0;
-      realesPorClave.set(clave, previo + Number(r.monto));
-    }
+  for (const r of registrosTracker) {
+    const clave = `${formatDateKey(r.fecha)}_${r.concepto}`;
+    const previo = realesPorClave.get(clave) || 0;
+    realesPorClave.set(clave, previo + Number(r.monto));
   }
 
   const hoy = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
@@ -76,4 +62,27 @@ async function calcularEstimadoMes(usuarioId, anio, mes) {
   return { dias, totalPorConcepto, totalGeneral, quincenas };
 }
 
-module.exports = { calcularEstimadoMes };
+async function calcularEstimadoMes(usuarioId, anio, mes) {
+  const ajuste = await prisma.ajusteTracker.findUnique({ where: { usuarioId } });
+  if (!ajuste) return null;
+
+  const inicioMes = new Date(Date.UTC(anio, mes - 1, 1));
+  const finMes = new Date(Date.UTC(anio, mes - 1, diasEnMes(anio, mes)));
+
+  const diasLibres = await prisma.diaLibre.findMany({
+    where: { usuarioId, fecha: { gte: inicioMes, lte: finMes } },
+  });
+  const diasLibresSet = new Set(diasLibres.map((d) => formatDateKey(d.fecha)));
+
+  const presupuesto = await prisma.presupuestoMensual.findUnique({
+    where: { usuarioId_anio_mes: { usuarioId, anio, mes } },
+  });
+
+  const registros = presupuesto
+    ? await prisma.trackerDiario.findMany({ where: { presupuestoId: presupuesto.id } })
+    : [];
+
+  return calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes, registros);
+}
+
+module.exports = { calcularEstimadoMes, calcularEstimadoMesPuro, CONCEPTOS_TRANSPORTE };

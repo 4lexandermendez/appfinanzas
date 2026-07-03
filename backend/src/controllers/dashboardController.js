@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const { redondear } = require("../utils/dinero");
 const { calcularResumenMes } = require("../services/resumenMensualService");
 const { calcularResumenAnual } = require("../services/resumenAnualService");
+const { calcularResumenAnualCompleto } = require("../services/resumenAnualCompletoService");
 
 async function hoy(req, res) {
   const ahora = new Date();
@@ -60,4 +61,13 @@ async function resumenAnual(req, res) {
   res.json(resultado);
 }
 
-module.exports = { hoy, resumenMes, resumenAnual };
+async function resumenAnualCompleto(req, res) {
+  const anio = Number(req.query.anio);
+  if (!anio) {
+    return res.status(400).json({ error: "anio es requerido" });
+  }
+  const resultado = await calcularResumenAnualCompleto(req.usuarioId, anio);
+  res.json(resultado);
+}
+
+module.exports = { hoy, resumenMes, resumenAnual, resumenAnualCompleto };

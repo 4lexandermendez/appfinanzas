@@ -14,3 +14,8 @@ export async function obtenerResumenAnual(anio) {
   const { data } = await client.get("/dashboard/resumen-anual", { params: { anio } });
   return data;
 }
+
+export async function obtenerResumenAnualCompleto(anio) {
+  const { data } = await client.get("/dashboard/resumen-anual-completo", { params: { anio } });
+  return data;
+}

@@ -3,18 +3,20 @@ const { redondear } = require("../utils/dinero");
 const { calcularResumenMes } = require("../services/resumenMensualService");
 const { calcularResumenAnual } = require("../services/resumenAnualService");
 const { calcularResumenAnualCompleto } = require("../services/resumenAnualCompletoService");
+const { parseFechaSoloDia } = require("../utils/fecha");
 
 async function hoy(req, res) {
-  const ahora = new Date();
-  const inicioDia = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
-  const finDia = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate() + 1));
+  const fecha = req.query.fecha ? parseFechaSoloDia(req.query.fecha) : null;
+  const base = fecha || new Date();
+  const inicioDia = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
+  const finDia = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + 1));
 
   const presupuesto = await prisma.presupuestoMensual.findUnique({
     where: {
       usuarioId_anio_mes: {
         usuarioId: req.usuarioId,
-        anio: ahora.getUTCFullYear(),
-        mes: ahora.getUTCMonth() + 1,
+        anio: inicioDia.getUTCFullYear(),
+        mes: inicioDia.getUTCMonth() + 1,
       },
     },
   });

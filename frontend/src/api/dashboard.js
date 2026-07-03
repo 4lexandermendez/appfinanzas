@@ -1,7 +1,7 @@
 import client from "./client";
 
-export async function obtenerGastadoHoy() {
-  const { data } = await client.get("/dashboard/hoy");
+export async function obtenerGastadoHoy(fecha) {
+  const { data } = await client.get("/dashboard/hoy", { params: fecha ? { fecha } : {} });
   return data;
 }
 

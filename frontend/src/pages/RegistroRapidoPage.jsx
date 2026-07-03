@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
@@ -13,17 +13,49 @@ const CONCEPTOS = [
   { valor: "PASAJE_REGRESO", etiqueta: "Pasaje regreso" },
 ];
 
-const ETIQUETAS_CONCEPTO = Object.fromEntries(CONCEPTOS.map((c) => [c.valor, c.etiqueta]));
+const NOMBRES_DIA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function sumarDias(fechaISO, dias) {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function diaDelMes(fechaISO) {
+  return new Date(`${fechaISO}T00:00:00Z`).getUTCDate();
+}
+
+function diaSemana(fechaISO) {
+  return new Date(`${fechaISO}T00:00:00Z`).getUTCDay();
+}
+
+function anioMes(fechaISO) {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  return { anio: d.getUTCFullYear(), mes: d.getUTCMonth() + 1 };
+}
+
+function formatoFechaLarga(fechaISO) {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  return d.toLocaleDateString("es", { day: "numeric", month: "long" });
+}
+
 export default function RegistroRapidoPage() {
-  const [gastadoHoy, setGastadoHoy] = useState(null);
+  const hoyReal = useMemo(() => hoyISO(), []);
+  const ventanaDias = useMemo(() => {
+    const dias = [];
+    for (let offset = -3; offset <= 3; offset++) dias.push(sumarDias(hoyReal, offset));
+    return dias;
+  }, [hoyReal]);
+
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
+  const [gastadoDia, setGastadoDia] = useState(null);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
-  const [registrosHoy, setRegistrosHoy] = useState([]);
+  const [registrosMes, setRegistrosMes] = useState([]);
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
 
@@ -35,35 +67,42 @@ export default function RegistroRapidoPage() {
   const [montosLibres, setMontosLibres] = useState({});
 
   async function cargarTodo() {
-    const hoy = new Date();
+    const { anio, mes } = anioMes(fechaSeleccionada);
     const [totales, botonesData, categoriasData, trackerMes] = await Promise.all([
-      obtenerGastadoHoy(),
+      obtenerGastadoHoy(fechaSeleccionada),
       listarBotonesRapidos(),
       listarCategorias(),
-      listarTracker(hoy.getFullYear(), hoy.getMonth() + 1),
+      listarTracker(anio, mes),
     ]);
-    const ordenConcepto = Object.fromEntries(CONCEPTOS.map((c, i) => [c.valor, i]));
-    setGastadoHoy(totales.totalHoy);
+    setGastadoDia(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
-    setRegistrosHoy(
-      trackerMes
-        .filter((r) => r.fecha.slice(0, 10) === hoyISO())
-        .sort((a, b) => ordenConcepto[a.concepto] - ordenConcepto[b.concepto] || a.id - b.id)
-    );
+    setRegistrosMes(trackerMes);
   }
 
   useEffect(() => {
     cargarTodo();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaSeleccionada]);
+
+  const diasConRegistro = useMemo(
+    () => new Set(registrosMes.map((r) => r.fecha.slice(0, 10))),
+    [registrosMes]
+  );
+
+  function registrosDelConcepto(concepto) {
+    return registrosMes
+      .filter((r) => r.fecha.slice(0, 10) === fechaSeleccionada && r.concepto === concepto)
+      .sort((a, b) => a.id - b.id);
+  }
 
   async function handleBoton(concepto, montoBoton) {
     setRegistrando(`${concepto}-${montoBoton}`);
     setMensaje("");
     try {
-      await registrarTracker({ fecha: hoyISO(), concepto, monto: montoBoton });
+      await registrarTracker({ fecha: fechaSeleccionada, concepto, monto: montoBoton });
       await cargarTodo();
-      setMensaje(`Registrado: $${montoBoton}`);
+      setMensaje(`Registrado: $${montoBoton.toFixed(2)}`);
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar");
     } finally {
@@ -99,13 +138,13 @@ export default function RegistroRapidoPage() {
         setMensaje("Elige o escribe una categoría");
         return;
       }
-      await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: hoyISO(), notas: nota });
+      await crearTransaccion({ categoriaId: idCategoria, monto: Number(monto), fecha: fechaSeleccionada, notas: nota });
       setMonto("");
       setNota("");
       setCategoriaTexto("");
       setCategoriaId(null);
-      const [totales, categoriasData] = await Promise.all([obtenerGastadoHoy(), listarCategorias()]);
-      setGastadoHoy(totales.totalHoy);
+      const [totales, categoriasData] = await Promise.all([obtenerGastadoHoy(fechaSeleccionada), listarCategorias()]);
+      setGastadoDia(totales.totalHoy);
       setCategorias(categoriasData);
       setMensaje("Gasto registrado");
     } catch (err) {
@@ -118,10 +157,38 @@ export default function RegistroRapidoPage() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-6 text-center">
-        <p className="text-sm text-gray-500">Hoy llevas gastado</p>
-        <p className="text-3xl font-bold text-gray-900">
-          {gastadoHoy === null ? "..." : `$${gastadoHoy.toFixed(2)}`}
+        <p className="text-sm text-gray-500">
+          {fechaSeleccionada === hoyReal ? "Hoy llevas gastado" : `Llevas gastado el ${formatoFechaLarga(fechaSeleccionada)}`}
         </p>
+        <p className="text-3xl font-bold text-gray-900">
+          {gastadoDia === null ? "..." : `$${gastadoDia.toFixed(2)}`}
+        </p>
+
+        <div className="flex justify-center gap-1 mt-4 overflow-x-auto">
+          {ventanaDias.map((f) => {
+            const seleccionado = f === fechaSeleccionada;
+            const esHoy = f === hoyReal;
+            const dow = diaSemana(f);
+            const finDeSemanaSinDatos = (dow === 0 || dow === 6) && !diasConRegistro.has(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFechaSeleccionada(f)}
+                className={`flex flex-col items-center justify-center w-11 h-14 rounded-lg text-xs shrink-0 transition-colors ${
+                  seleccionado
+                    ? "bg-purple-600 text-white"
+                    : finDeSemanaSinDatos
+                      ? "bg-gray-50 text-gray-300"
+                      : "bg-gray-100 text-gray-600 hover:bg-purple-100"
+                } ${esHoy && !seleccionado ? "ring-1 ring-purple-400" : ""}`}
+              >
+                <span>{NOMBRES_DIA[dow]}</span>
+                <span className="font-semibold text-sm">{diaDelMes(f)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {mensaje && (
@@ -130,15 +197,16 @@ export default function RegistroRapidoPage() {
         </p>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
-          <div className="space-y-3">
-            {CONCEPTOS.map((c) => {
-              const config = botones.find((b) => b.concepto === c.valor);
-              const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
-              return (
-                <div key={c.valor}>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
+        <div className="space-y-4">
+          {CONCEPTOS.map((c) => {
+            const config = botones.find((b) => b.concepto === c.valor);
+            const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
+            const registrosConcepto = registrosDelConcepto(c.valor);
+            return (
+              <div key={c.valor} className="flex flex-col md:flex-row md:items-center gap-2 border-t border-gray-50 pt-3 first:border-0 first:pt-0">
+                <div className="md:w-64 shrink-0">
                   <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -180,30 +248,31 @@ export default function RegistroRapidoPage() {
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Hoy registraste</h2>
-          <div className="space-y-1">
-            {registrosHoy.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 text-sm">
-                <span className="flex-1 text-gray-700">{ETIQUETAS_CONCEPTO[r.concepto] || r.concepto}</span>
-                <span className="text-gray-500">${Number(r.monto).toFixed(2)}</span>
-                <button
-                  onClick={() => handleEliminarTracker(r.id)}
-                  className="text-red-500 hover:underline"
-                >
-                  Corregir / borrar
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {registrosConcepto.map((r) => (
+                    <span
+                      key={r.id}
+                      className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 text-xs text-gray-700"
+                    >
+                      ${Number(r.monto).toFixed(2)}
+                      <button
+                        type="button"
+                        onClick={() => handleEliminarTracker(r.id)}
+                        title="Corregir / borrar"
+                        className="ml-1 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
+                      >
+                        🗑️
+                      </button>
+                    </span>
+                  ))}
+                  {registrosConcepto.length === 0 && (
+                    <span className="text-xs text-gray-300">Sin registros</span>
+                  )}
+                </div>
               </div>
-            ))}
-            {registrosHoy.length === 0 && (
-              <p className="text-sm text-gray-400">Todavía no registraste nada hoy en el tracker</p>
-            )}
-          </div>
+            );
+          })}
         </div>
       </div>
 
@@ -251,7 +320,7 @@ export default function RegistroRapidoPage() {
           disabled={enviandoForm}
           className="w-full bg-purple-600 text-white rounded py-2 font-medium hover:bg-purple-700 disabled:opacity-50"
         >
-          {enviandoForm ? "Registrando..." : "Registrar gasto"}
+          {enviandoForm ? "Registrando..." : `Registrar gasto (${fechaSeleccionada === hoyReal ? "hoy" : formatoFechaLarga(fechaSeleccionada)})`}
         </button>
       </form>
     </div>

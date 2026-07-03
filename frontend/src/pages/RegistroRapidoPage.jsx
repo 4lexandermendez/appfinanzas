@@ -254,27 +254,33 @@ export default function RegistroRapidoPage() {
 
                 <div className="border-t border-gray-50 pt-3">
                   <p className="text-xs text-gray-500 mb-1 invisible">{c.etiqueta}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {registrosConcepto.map((r) => (
-                      <span
-                        key={r.id}
-                        className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 text-xs text-gray-700"
-                      >
-                        ${Number(r.monto).toFixed(2)}
-                        <button
-                          type="button"
-                          onClick={() => handleEliminarTracker(r.id)}
-                          title="Corregir / borrar"
-                          className="ml-1 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
+                  {registrosConcepto.length === 0 ? (
+                    <div className="inline-flex items-center px-3 py-2 rounded border border-dashed border-gray-200 text-xs text-gray-300">
+                      Sin registros
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {registrosConcepto.map((r) => (
+                        <span
+                          key={r.id}
+                          className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 text-xs text-gray-700"
                         >
-                          🗑️
-                        </button>
+                          ${Number(r.monto).toFixed(2)}
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarTracker(r.id)}
+                            title="Corregir / borrar"
+                            className="ml-1 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
+                          >
+                            🗑️
+                          </button>
+                        </span>
+                      ))}
+                      <span className="text-xs text-gray-400 font-medium">
+                        Total: ${registrosConcepto.reduce((s, r) => s + Number(r.monto), 0).toFixed(2)}
                       </span>
-                    ))}
-                    {registrosConcepto.length === 0 && (
-                      <span className="text-xs text-gray-300">Sin registros</span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </Fragment>
             );

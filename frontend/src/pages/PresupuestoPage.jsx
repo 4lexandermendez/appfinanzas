@@ -322,10 +322,6 @@ export default function PresupuestoPage() {
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>
         <div className="p-6">
-          <p className="text-xs text-gray-400 mb-3">
-            Solo cuentan para el Estimado del mes los que agregaste explícitamente. Desactivar deja de sugerirlo en
-            meses futuros, pero no borra el histórico ya registrado.
-          </p>
           <div className="space-y-2">
             {gastosFijos.map((g) => (
               <div key={g.gastoFijoConfigId} className="flex items-center gap-2 text-sm">
@@ -387,11 +383,6 @@ export default function PresupuestoPage() {
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <h2 className="px-6 py-2 font-semibold text-sm bg-yellow-100 text-yellow-800">Gastos variables (estimado)</h2>
         <div className="p-6">
-          <p className="text-xs text-gray-400 mb-3">
-            Transporte y Comida usan el estimado automático del Tracker. Acá va el estimado del resto (Temu,
-            Universidad, etc.) — el nombre se autocompleta desde tu historial al registrar el gasto real en
-            Registro Rápido.
-          </p>
           <div className="space-y-2">
             {estimadoVariables.map((c) => (
               <div key={c.categoriaId} className="flex items-center gap-2 text-sm">

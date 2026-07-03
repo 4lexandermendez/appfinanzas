@@ -310,7 +310,7 @@ export default function RegistroRapidoPage() {
           <h2 className="text-sm font-semibold text-gray-700">Gasto variable</h2>
 
           <div>
-            <label className="block text-xs text-gray-500 mb-1">¿Cuál gastaste?</label>
+            <label className="block text-xs text-gray-500 mb-1">¿Cuál pagaste?</label>
             <select
               value={categoriaId ?? ""}
               onChange={(e) => setCategoriaId(e.target.value)}
@@ -323,8 +323,6 @@ export default function RegistroRapidoPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-400 mt-1">
-            </p>
           </div>
 
           <div>

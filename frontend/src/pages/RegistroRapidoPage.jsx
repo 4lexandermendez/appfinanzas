@@ -4,6 +4,7 @@ import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
+import { listarGastosFijosConfig, guardarGastoFijoMensual } from "../api/gastosFijos";
 import AutocompletadoCategoria from "../components/AutocompletadoCategoria";
 
 const CONCEPTOS = [
@@ -66,18 +67,25 @@ export default function RegistroRapidoPage() {
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
 
+  const [gastosFijos, setGastosFijos] = useState([]);
+  const [gastoFijoId, setGastoFijoId] = useState("");
+  const [montoFijo, setMontoFijo] = useState("");
+  const [enviandoFijo, setEnviandoFijo] = useState(false);
+
   async function cargarTodo() {
     const { anio, mes } = anioMes(fechaSeleccionada);
-    const [totales, botonesData, categoriasData, trackerMes] = await Promise.all([
+    const [totales, botonesData, categoriasData, trackerMes, gastosFijosData] = await Promise.all([
       obtenerGastadoHoy(fechaSeleccionada),
       listarBotonesRapidos(),
       listarCategorias(),
       listarTracker(anio, mes),
+      listarGastosFijosConfig(),
     ]);
     setGastadoDia(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
     setRegistrosMes(trackerMes);
+    setGastosFijos(gastosFijosData.filter((g) => g.activo));
   }
 
   useEffect(() => {
@@ -151,6 +159,32 @@ export default function RegistroRapidoPage() {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto");
     } finally {
       setEnviandoForm(false);
+    }
+  }
+
+  async function handleSubmitGastoFijo(e) {
+    e.preventDefault();
+    setMensaje("");
+    if (!gastoFijoId || !montoFijo) {
+      setMensaje("Elige un gasto fijo y su monto");
+      return;
+    }
+    setEnviandoFijo(true);
+    try {
+      const { anio, mes } = anioMes(fechaSeleccionada);
+      await guardarGastoFijoMensual({
+        gastoFijoConfigId: Number(gastoFijoId),
+        anio,
+        mes,
+        montoReal: Number(montoFijo),
+      });
+      setGastoFijoId("");
+      setMontoFijo("");
+      setMensaje("Gasto fijo marcado como pagado");
+    } catch (err) {
+      setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
+    } finally {
+      setEnviandoFijo(false);
     }
   }
 
@@ -284,53 +318,100 @@ export default function RegistroRapidoPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmitGasto} className="bg-white rounded-lg shadow p-6 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">Registrar un gasto</h2>
+      <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmitGasto} className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">Gasto variable</h2>
 
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-          <AutocompletadoCategoria
-            categorias={categorias}
-            valor={categoriaTexto}
-            onChange={(texto, id) => {
-              setCategoriaTexto(texto);
-              setCategoriaId(id);
-            }}
-            placeholder="Ej. Netflix (empezá a escribir para ver sugerencias)"
-          />
-        </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Categoría</label>
+            <AutocompletadoCategoria
+              categorias={categorias}
+              valor={categoriaTexto}
+              onChange={(texto, id) => {
+                setCategoriaTexto(texto);
+                setCategoriaId(id);
+              }}
+              placeholder="Ej. Netflix (empezá a escribir para ver sugerencias)"
+            />
+          </div>
 
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Monto</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            required
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-          />
-        </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Monto</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
 
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Nota (opcional)</label>
-          <input
-            type="text"
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-          />
-        </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Nota (opcional)</label>
+            <input
+              type="text"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={enviandoForm}
-          className="w-full bg-purple-600 text-white rounded py-2 font-medium hover:bg-purple-700 disabled:opacity-50"
-        >
-          {enviandoForm ? "Registrando..." : `Registrar gasto (${fechaSeleccionada === hoyReal ? "hoy" : formatoFechaLarga(fechaSeleccionada)})`}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={enviandoForm}
+            className="w-full bg-purple-600 text-white rounded py-2 font-medium hover:bg-purple-700 disabled:opacity-50"
+          >
+            {enviandoForm ? "Registrando..." : `Registrar (${fechaSeleccionada === hoyReal ? "hoy" : formatoFechaLarga(fechaSeleccionada)})`}
+          </button>
+        </form>
+
+        <form onSubmit={handleSubmitGastoFijo} className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">Gasto fijo (ya pagado)</h2>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">¿Cuál pagaste?</label>
+            <select
+              value={gastoFijoId}
+              onChange={(e) => setGastoFijoId(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              <option value="">-- Elegir gasto fijo --</option>
+              {gastosFijos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)})
+                </option>
+              ))}
+            </select>
+            {gastosFijos.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                No tenés gastos fijos configurados. Agregalos en Presupuesto.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Monto pagado</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={montoFijo}
+              onChange={(e) => setMontoFijo(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={enviandoFijo}
+            className="w-full bg-pink-600 text-white rounded py-2 font-medium hover:bg-pink-700 disabled:opacity-50"
+          >
+            {enviandoFijo ? "Registrando..." : "Marcar como pagado"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

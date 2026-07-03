@@ -10,6 +10,11 @@ export async function listarTransacciones(anio, mes) {
   return data.transacciones;
 }
 
+export async function actualizarTransaccion(id, cambios) {
+  const { data } = await client.put(`/transacciones/${id}`, cambios);
+  return data.transaccion;
+}
+
 export async function eliminarTransaccion(id) {
   await client.delete(`/transacciones/${id}`);
 }

@@ -8,7 +8,7 @@ import { listarIngresos } from "../api/ingresos";
 import { listarAhorros } from "../api/ahorros";
 import { listarGastosFijosMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
-import { listarTransacciones } from "../api/transacciones";
+import { listarTransacciones, actualizarTransaccion } from "../api/transacciones";
 import { obtenerNotas, guardarNotas } from "../api/presupuestoMensual";
 
 const MESES = [
@@ -116,6 +116,11 @@ export default function MesPage() {
     setNotasGuardando(true);
     await guardarNotas(anio, mes, notas);
     setNotasGuardando(false);
+  }
+
+  async function handleGuardarNotaTransaccion(id, notaNueva) {
+    await actualizarTransaccion(id, { notas: notaNueva });
+    setTransacciones((prev) => prev.map((t) => (t.id === id ? { ...t, notas: notaNueva } : t)));
   }
 
   if (cargando || !resumen) {
@@ -370,7 +375,15 @@ export default function MesPage() {
                 <td className="px-4 py-1">{t.categoria.nombre}</td>
                 <td className="px-4 py-1 text-right">{fmt(t.monto)}</td>
                 <td className="px-4 py-1">{t.fecha.slice(0, 10)}</td>
-                <td className="px-4 py-1 text-gray-500">{t.notas || ""}</td>
+                <td className="px-4 py-1">
+                  <input
+                    type="text"
+                    defaultValue={t.notas || ""}
+                    placeholder="Agregar nota..."
+                    onBlur={(e) => handleGuardarNotaTransaccion(t.id, e.target.value)}
+                    className="w-full border border-transparent hover:border-gray-200 focus:border-gray-300 rounded px-2 py-1 text-gray-600"
+                  />
+                </td>
               </tr>
             ))}
             {transacciones.length === 0 && (

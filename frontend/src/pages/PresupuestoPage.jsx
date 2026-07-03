@@ -221,31 +221,58 @@ export default function PresupuestoPage() {
         </select>
       </div>
 
+      <section className="bg-white rounded-lg shadow overflow-hidden">
+        <h2 className="px-6 py-2 font-semibold text-sm bg-green-100 text-green-800">Ingresos</h2>
+        <div className="p-6">
+          <div className="space-y-2">
+            {ingresos.map((i) => (
+              <div key={i.id} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{i.nombre}</span>
+                <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  defaultValue={i.montoReal ?? ""}
+                  placeholder="Real"
+                  onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
+                  className="w-24 border border-gray-300 rounded px-2 py-1"
+                />
+                <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+            {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
+          </div>
+          <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="bg-white rounded-lg shadow overflow-hidden">
-          <h2 className="px-6 py-2 font-semibold text-sm bg-green-100 text-green-800">Ingresos</h2>
+          <h2 className="px-6 py-2 font-semibold text-sm bg-blue-100 text-blue-800">Ahorros</h2>
           <div className="p-6">
             <div className="space-y-2">
-              {ingresos.map((i) => (
-                <div key={i.id} className="flex items-center gap-2 text-sm">
-                  <span className="flex-1">{i.nombre}</span>
-                  <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
+              {ahorros.map((a) => (
+                <div key={a.id} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{a.nombre}</span>
+                  <span className="text-gray-400">Est. ${Number(a.montoEstimado).toFixed(2)}</span>
                   <input
                     type="number"
                     step="0.01"
-                    defaultValue={i.montoReal ?? ""}
+                    defaultValue={a.montoReal ?? ""}
                     placeholder="Real"
-                    onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
+                    onBlur={(e) => handleRealAhorro(a.id, e.target.value)}
                     className="w-24 border border-gray-300 rounded px-2 py-1"
                   />
-                  <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
+                  <button onClick={() => handleEliminarAhorro(a.id)} className="text-red-500 hover:underline">
                     Eliminar
                   </button>
                 </div>
               ))}
-              {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
+              {ahorros.length === 0 && <p className="text-sm text-gray-400">Sin ahorros este mes</p>}
             </div>
-            <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
+            <NuevoItemForm onSubmit={handleNuevoAhorro} placeholder="Ej. Fondo de emergencia" />
           </div>
         </section>
 
@@ -294,33 +321,6 @@ export default function PresupuestoPage() {
           </div>
         </section>
       </div>
-
-      <section className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="px-6 py-2 font-semibold text-sm bg-blue-100 text-blue-800">Ahorros</h2>
-        <div className="p-6">
-          <div className="space-y-2">
-            {ahorros.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 text-sm">
-                <span className="flex-1">{a.nombre}</span>
-                <span className="text-gray-400">Est. ${Number(a.montoEstimado).toFixed(2)}</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  defaultValue={a.montoReal ?? ""}
-                  placeholder="Real"
-                  onBlur={(e) => handleRealAhorro(a.id, e.target.value)}
-                  className="w-24 border border-gray-300 rounded px-2 py-1"
-                />
-                <button onClick={() => handleEliminarAhorro(a.id)} className="text-red-500 hover:underline">
-                  Eliminar
-                </button>
-              </div>
-            ))}
-            {ahorros.length === 0 && <p className="text-sm text-gray-400">Sin ahorros este mes</p>}
-          </div>
-          <NuevoItemForm onSubmit={handleNuevoAhorro} placeholder="Ej. Fondo de emergencia" />
-        </div>
-      </section>
 
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Gastos fijos</h2>

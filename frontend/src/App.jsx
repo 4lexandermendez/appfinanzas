@@ -5,7 +5,6 @@ import RegistroRapidoPage from "./pages/RegistroRapidoPage";
 import DashboardMesPage from "./pages/DashboardMesPage";
 import PresupuestoPage from "./pages/PresupuestoPage";
 import TarjetasPage from "./pages/TarjetasPage";
-import AlertasPage from "./pages/AlertasPage";
 import ResumenAnualPage from "./pages/ResumenAnualPage";
 import MetasAhorroPage from "./pages/MetasAhorroPage";
 import AjustesPage from "./pages/AjustesPage";
@@ -30,7 +29,6 @@ function App() {
         <Route path="dashboard" element={<DashboardMesPage />} />
         <Route path="presupuesto" element={<PresupuestoPage />} />
         <Route path="tarjetas" element={<TarjetasPage />} />
-        <Route path="alertas" element={<AlertasPage />} />
         <Route path="anual" element={<ResumenAnualPage />} />
         <Route path="metas" element={<MetasAhorroPage />} />
         <Route path="ajustes" element={<AjustesPage />} />

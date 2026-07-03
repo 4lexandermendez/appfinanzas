@@ -221,32 +221,79 @@ export default function PresupuestoPage() {
         </select>
       </div>
 
-      <section className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="px-6 py-2 font-semibold text-sm bg-green-100 text-green-800">Ingresos</h2>
-        <div className="p-6">
-          <div className="space-y-2">
-            {ingresos.map((i) => (
-              <div key={i.id} className="flex items-center gap-2 text-sm">
-                <span className="flex-1">{i.nombre}</span>
-                <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  defaultValue={i.montoReal ?? ""}
-                  placeholder="Real"
-                  onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
-                  className="w-24 border border-gray-300 rounded px-2 py-1"
-                />
-                <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
-                  Eliminar
-                </button>
-              </div>
-            ))}
-            {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="bg-white rounded-lg shadow overflow-hidden">
+          <h2 className="px-6 py-2 font-semibold text-sm bg-green-100 text-green-800">Ingresos</h2>
+          <div className="p-6">
+            <div className="space-y-2">
+              {ingresos.map((i) => (
+                <div key={i.id} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1">{i.nombre}</span>
+                  <span className="text-gray-400">Est. ${Number(i.montoEstimado).toFixed(2)}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    defaultValue={i.montoReal ?? ""}
+                    placeholder="Real"
+                    onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
+                    className="w-24 border border-gray-300 rounded px-2 py-1"
+                  />
+                  <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
+                    Eliminar
+                  </button>
+                </div>
+              ))}
+              {ingresos.length === 0 && <p className="text-sm text-gray-400">Sin ingresos este mes</p>}
+            </div>
+            <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
           </div>
-          <NuevoItemForm onSubmit={handleNuevoIngreso} placeholder="Ej. Quincena 1" />
-        </div>
-      </section>
+        </section>
+
+        <section className="bg-white rounded-lg shadow overflow-hidden">
+          <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Deudas</h2>
+          <div className="p-6">
+            <p className="text-xs text-gray-400 mb-3">
+              "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
+            </p>
+            <div className="space-y-2">
+              {deudas.map((d) => (
+                <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
+                  <span className="flex-1">{d.nombre}</span>
+                  <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
+                  {estaVigenteEnMes(d, anio, mes) ? (
+                    <>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Estimado del mes"
+                        onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
+                        className="w-28 border border-gray-300 rounded px-2 py-1"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Real (pago)"
+                        onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
+                        className="w-24 border border-gray-300 rounded px-2 py-1"
+                      />
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
+                  )}
+                  <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
+                    {d.activo ? "Deshabilitar" : "Reactivar"}
+                  </button>
+                  <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
+                    Eliminar
+                  </button>
+                </div>
+              ))}
+              {deudas.length === 0 && <p className="text-sm text-gray-400">Sin deudas registradas</p>}
+            </div>
+            <NuevoItemForm onSubmit={handleNuevaDeuda} placeholder="Ej. Préstamo moto" placeholderMonto="Saldo actual" />
+          </div>
+        </section>
+      </div>
 
       <section className="bg-white rounded-lg shadow overflow-hidden">
         <h2 className="px-6 py-2 font-semibold text-sm bg-blue-100 text-blue-800">Ahorros</h2>
@@ -337,51 +384,6 @@ export default function PresupuestoPage() {
           )}
 
           <NuevoItemForm onSubmit={handleNuevoGastoFijo} placeholder="Ej. Netflix" />
-        </div>
-      </section>
-
-      <section className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="px-6 py-2 font-semibold text-sm bg-pink-100 text-pink-800">Deudas</h2>
-        <div className="p-6">
-          <p className="text-xs text-gray-400 mb-3">
-            "Actual" es el saldo pendiente: baja solo cuando registrás un Real (pago).
-          </p>
-          <div className="space-y-2">
-            {deudas.map((d) => (
-              <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
-                <span className="flex-1">{d.nombre}</span>
-                <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
-                {estaVigenteEnMes(d, anio, mes) ? (
-                  <>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Estimado del mes"
-                      onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
-                      className="w-28 border border-gray-300 rounded px-2 py-1"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Real (pago)"
-                      onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
-                      className="w-24 border border-gray-300 rounded px-2 py-1"
-                    />
-                  </>
-                ) : (
-                  <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
-                )}
-                <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
-                  {d.activo ? "Deshabilitar" : "Reactivar"}
-                </button>
-                <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
-                  Eliminar
-                </button>
-              </div>
-            ))}
-            {deudas.length === 0 && <p className="text-sm text-gray-400">Sin deudas registradas</p>}
-          </div>
-          <NuevoItemForm onSubmit={handleNuevaDeuda} placeholder="Ej. Préstamo moto" placeholderMonto="Saldo actual" />
         </div>
       </section>
 

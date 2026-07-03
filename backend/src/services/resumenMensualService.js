@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { redondear } = require("../utils/dinero");
+const { estaVigenteEnMes } = require("../utils/vigencia");
 const { listarCategorias } = require("./categoriaService");
 const { calcularEstimadoMes } = require("./estimadoTrackerService");
 const { calcularResumenReal } = require("./resumenTrackerService");
@@ -18,7 +19,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     await Promise.all([
       presupuesto ? prisma.ingreso.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.ahorro.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-      prisma.gastoFijoConfig.findMany({ where: { usuarioId, activo: true } }),
+      prisma.gastoFijoConfig.findMany({ where: { usuarioId } }),
       presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
@@ -34,8 +35,9 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     estimado: redondear(ahorros.reduce((s, a) => s + Number(a.montoEstimado), 0)),
     real: redondear(ahorros.reduce((s, a) => s + Number(a.montoReal || 0), 0)),
   };
+  const gastosFijosVigentes = gastosFijosConfig.filter((g) => estaVigenteEnMes(g, anio, mes));
   const gastosFijosResumen = {
-    estimado: redondear(gastosFijosConfig.reduce((s, g) => s + Number(g.montoEstimado), 0)),
+    estimado: redondear(gastosFijosVigentes.reduce((s, g) => s + Number(g.montoEstimado), 0)),
     real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
   };
 

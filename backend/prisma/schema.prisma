@@ -62,12 +62,18 @@ model PresupuestoMensual {
 // GASTOS FIJOS (lista administrable reutilizable)
 // ============================================================
 
+// creadoEn/desactivadoEn le dan vigencia temporal a la lista: un gasto fijo
+// solo debe contar en el estimado de los meses desde que se creó en adelante,
+// y si se deshabilita, deja de contar desde ahí pero los meses pasados donde
+// sí estuvo vigente (ya reales o estimados) no deben perder ese dato.
 model GastoFijoConfig {
-  id            Int     @id @default(autoincrement())
-  usuarioId     Int     @map("usuario_id")
+  id            Int       @id @default(autoincrement())
+  usuarioId     Int       @map("usuario_id")
   nombre        String
-  montoEstimado Decimal @map("monto_estimado") @db.Decimal(10, 2)
-  activo        Boolean @default(true)
+  montoEstimado Decimal   @map("monto_estimado") @db.Decimal(10, 2)
+  activo        Boolean   @default(true)
+  creadoEn      DateTime  @default(now()) @map("creado_en")
+  desactivadoEn DateTime? @map("desactivado_en")
 
   usuario         Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   gastosMensuales GastoFijoMensual[]

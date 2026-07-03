@@ -4,7 +4,7 @@ import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
-import { listarGastosFijosConfig, guardarGastoFijoMensual } from "../api/gastosFijos";
+import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
 
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
@@ -76,13 +76,13 @@ export default function RegistroRapidoPage() {
       listarBotonesRapidos(),
       listarCategorias(),
       listarTracker(anio, mes),
-      listarGastosFijosConfig(),
+      listarGastosFijosMensual(anio, mes),
     ]);
     setGastadoDia(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
     setRegistrosMes(trackerMes);
-    setGastosFijos(gastosFijosData.filter((g) => g.activo));
+    setGastosFijos(gastosFijosData);
   }
 
   useEffect(() => {
@@ -359,14 +359,14 @@ export default function RegistroRapidoPage() {
             >
               <option value="">-- Elegir gasto fijo --</option>
               {gastosFijos.map((g) => (
-                <option key={g.id} value={g.id}>
+                <option key={g.gastoFijoConfigId} value={g.gastoFijoConfigId}>
                   {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)})
                 </option>
               ))}
             </select>
             {gastosFijos.length === 0 && (
               <p className="text-xs text-gray-400 mt-1">
-                No tenés gastos fijos configurados. Agregalos en Presupuesto.
+                No hay gastos fijos vigentes este mes. Agregalos en Presupuesto.
               </p>
             )}
           </div>

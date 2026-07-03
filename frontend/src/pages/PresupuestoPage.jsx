@@ -22,6 +22,18 @@ function hoy() {
   return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
 }
 
+// Espejo de estaVigenteEnMes del backend: un gasto fijo solo cuenta para un
+// mes si ya existía para entonces y, si fue deshabilitado, si eso pasó
+// después de que el mes ya había empezado.
+function estaVigenteEnMes(item, anio, mes) {
+  const inicioMes = new Date(Date.UTC(anio, mes - 1, 1));
+  const finMes = new Date(Date.UTC(anio, mes, 1));
+  const creadoEn = new Date(item.creadoEn);
+  if (creadoEn >= finMes) return false;
+  if (item.desactivadoEn && new Date(item.desactivadoEn) <= inicioMes) return false;
+  return true;
+}
+
 function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "Estimado" }) {
   const [nombre, setNombre] = useState("");
   const [montoEstimado, setMontoEstimado] = useState("");
@@ -259,7 +271,7 @@ export default function PresupuestoPage() {
               <div key={g.id} className={`flex items-center gap-2 text-sm ${!g.activo ? "opacity-40" : ""}`}>
                 <span className="flex-1">{g.nombre}</span>
                 <span className="text-gray-400">Est. ${Number(g.montoEstimado).toFixed(2)}</span>
-                {g.activo && (
+                {estaVigenteEnMes(g, anio, mes) ? (
                   <input
                     type="number"
                     step="0.01"
@@ -267,6 +279,8 @@ export default function PresupuestoPage() {
                     onBlur={(e) => handleRealGastoFijo(g.id, e.target.value)}
                     className="w-28 border border-gray-300 rounded px-2 py-1"
                   />
+                ) : (
+                  <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
                 )}
                 <button onClick={() => handleToggleActivo(g.id, g.activo)} className="text-purple-600 hover:underline">
                   {g.activo ? "Deshabilitar" : "Reactivar"}

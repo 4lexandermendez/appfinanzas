@@ -13,6 +13,7 @@ import {
   listarDeudasConfig, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
 } from "../api/deudas";
 import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
+import { crearCategoria } from "../api/categorias";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -154,6 +155,15 @@ export default function PresupuestoPage() {
   async function handleEstimadoVariable(categoriaId, montoEstimado) {
     if (montoEstimado === "") return;
     await guardarEstimadoVariable({ categoriaId, anio, mes, montoEstimado: Number(montoEstimado) });
+    cargarTodo();
+  }
+
+  async function handleNuevoGastoVariable(datos) {
+    const existente = estimadoVariables.find(
+      (c) => c.nombre.toLowerCase() === datos.nombre.toLowerCase()
+    );
+    const categoriaId = existente ? existente.categoriaId : (await crearCategoria(datos.nombre)).id;
+    await guardarEstimadoVariable({ categoriaId, anio, mes, montoEstimado: datos.montoEstimado });
     cargarTodo();
   }
 
@@ -339,10 +349,11 @@ export default function PresupuestoPage() {
             ))}
             {estimadoVariables.length === 0 && (
               <p className="text-sm text-gray-400">
-                Todavía no registraste ningún gasto variable este mes (fuera de Transporte/Comida).
+                Todavía no tenés ningún gasto variable este mes (fuera de Transporte/Comida).
               </p>
             )}
           </div>
+          <NuevoItemForm onSubmit={handleNuevoGastoVariable} placeholder="Ej. Temu" />
         </div>
       </section>
     </div>

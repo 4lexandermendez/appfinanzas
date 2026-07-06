@@ -29,9 +29,6 @@ export default function Layout() {
               <NavLink to="/tarjetas" className={linkClase}>
                 Tarjetas
               </NavLink>
-              <NavLink to="/metas" className={linkClase}>
-                Metas
-              </NavLink>
               <NavLink to="/ajustes" className={linkClase}>
                 Ajustes
               </NavLink>

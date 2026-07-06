@@ -5,7 +5,6 @@ import RegistroRapidoPage from "./pages/RegistroRapidoPage";
 import PresupuestoPage from "./pages/PresupuestoPage";
 import TarjetasPage from "./pages/TarjetasPage";
 import ResumenAnualPage from "./pages/ResumenAnualPage";
-import MetasAhorroPage from "./pages/MetasAhorroPage";
 import AjustesPage from "./pages/AjustesPage";
 import MesPage from "./pages/MesPage";
 import Layout from "./components/Layout";
@@ -28,7 +27,6 @@ function App() {
         <Route path="presupuesto" element={<PresupuestoPage />} />
         <Route path="tarjetas" element={<TarjetasPage />} />
         <Route path="anual" element={<ResumenAnualPage />} />
-        <Route path="metas" element={<MetasAhorroPage />} />
         <Route path="ajustes" element={<AjustesPage />} />
         <Route path="mes" element={<MesPage />} />
       </Route>

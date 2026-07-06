@@ -257,9 +257,6 @@ function SeccionDiasLibres() {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-400">
-        Días marcados como no laborales este mes (se excluyen del estimado automático).
-      </p>
       <div className="space-y-1">
         {dias.map((d) => (
           <div key={d.id} className="flex items-center gap-2 text-sm">

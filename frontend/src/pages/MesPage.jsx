@@ -10,6 +10,7 @@ import { listarGastosFijosMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
 import { listarTransacciones, actualizarTransaccion } from "../api/transacciones";
 import { obtenerNotas, guardarNotas } from "../api/presupuestoMensual";
+import { obtenerDetalleQuincenal } from "../api/tracker";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -93,6 +94,7 @@ export default function MesPage() {
   const [transacciones, setTransacciones] = useState([]);
   const [notas, setNotas] = useState("");
   const [notasGuardando, setNotasGuardando] = useState(false);
+  const [quincenal, setQuincenal] = useState(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
@@ -105,7 +107,8 @@ export default function MesPage() {
       listarDeudasMensual(anio, mes),
       listarTransacciones(anio, mes),
       obtenerNotas(anio, mes),
-    ]).then(([r, i, a, gf, d, t, n]) => {
+      obtenerDetalleQuincenal(anio, mes).catch(() => null),
+    ]).then(([r, i, a, gf, d, t, n, q]) => {
       setResumen(r);
       setIngresos(i);
       setAhorros(a);
@@ -113,6 +116,7 @@ export default function MesPage() {
       setDeudas(d);
       setTransacciones(t);
       setNotas(n);
+      setQuincenal(q);
       setCargando(false);
     });
   }, [anio, mes]);
@@ -240,60 +244,6 @@ export default function MesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Presupuesto vs Real</h2>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={dataBarras}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v) => fmt(v)} />
-            <Legend />
-            <Bar dataKey="Presupuesto" fill="#c4b5fd" />
-            <Bar dataKey="Real" fill="#a855f7" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución (presupuestado)</h2>
-          {dataDonaPresupuesto.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center">Sin presupuesto este mes</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={dataDonaPresupuesto} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
-                  {dataDonaPresupuesto.map((d) => (
-                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => fmt(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución (real)</h2>
-          {dataDonaReal.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center">Sin gastos registrados este mes</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={dataDonaReal} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
-                  {dataDonaReal.map((d) => (
-                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => fmt(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TablaDetalle
           titulo="Ingresos"
@@ -401,6 +351,97 @@ export default function MesPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {quincenal && (
+        <div className="bg-white rounded-lg shadow p-6 overflow-x-auto">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Gastos detallados quincenales</h2>
+          <table className="text-sm min-w-full">
+            <thead className="text-gray-500">
+              <tr>
+                <th className="text-left pr-3"></th>
+                <th className="text-right px-2">Quincena 1</th>
+                <th className="text-right px-2">Real</th>
+                <th className="text-right px-2">Ahorrado</th>
+                <th className="text-right px-2">Quincena 2</th>
+                <th className="text-right px-2">Real</th>
+                <th className="text-right px-2">Ahorrado</th>
+                <th className="text-right pl-2">Total real</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { etiqueta: "Transporte", datos: quincenal.transporte },
+                { etiqueta: "Comida", datos: quincenal.comida },
+              ].map((fila) => (
+                <tr key={fila.etiqueta} className="border-t border-gray-100">
+                  <td className="pr-3 text-gray-700">{fila.etiqueta}</td>
+                  <td className="text-right px-2">${fila.datos.quincena1.estimado.toFixed(2)}</td>
+                  <td className="text-right px-2">${fila.datos.quincena1.real.toFixed(2)}</td>
+                  <td className="text-right px-2">${fila.datos.quincena1.ahorrado.toFixed(2)}</td>
+                  <td className="text-right px-2">${fila.datos.quincena2.estimado.toFixed(2)}</td>
+                  <td className="text-right px-2">${fila.datos.quincena2.real.toFixed(2)}</td>
+                  <td className="text-right px-2">${fila.datos.quincena2.ahorrado.toFixed(2)}</td>
+                  <td className="text-right pl-2 font-medium">${fila.datos.total.real.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Presupuesto vs Real</h2>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={dataBarras}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v) => fmt(v)} />
+            <Legend />
+            <Bar dataKey="Presupuesto" fill="#c4b5fd" />
+            <Bar dataKey="Real" fill="#a855f7" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución (presupuestado)</h2>
+          {dataDonaPresupuesto.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center">Sin presupuesto este mes</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={dataDonaPresupuesto} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
+                  {dataDonaPresupuesto.map((d) => (
+                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => fmt(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución (real)</h2>
+          {dataDonaReal.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center">Sin gastos registrados este mes</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={dataDonaReal} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
+                  {dataDonaReal.map((d) => (
+                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => fmt(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
   );

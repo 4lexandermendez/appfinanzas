@@ -147,6 +147,11 @@ export default function MesPage() {
     resumen.ingresos.estimado - categoriasSalida.reduce((s, c) => s + c.estimado, 0);
   const sinUsarReal = resumen.ingresos.real - categoriasSalida.reduce((s, c) => s + c.real, 0);
 
+  const progresoAhorro =
+    resumen.ahorros.estimado > 0
+      ? Math.min(100, Math.round((resumen.ahorros.real / resumen.ahorros.estimado) * 100))
+      : 0;
+
   const dataBarras = categoriasSalida.map((c) => ({ nombre: c.nombre, Presupuesto: c.estimado, Real: c.real }));
   const dataDonaPresupuesto = categoriasSalida.filter((c) => c.estimado > 0).map((c) => ({ name: c.nombre, value: c.estimado }));
   const dataDonaReal = categoriasSalida.filter((c) => c.real > 0).map((c) => ({ name: c.nombre, value: c.real }));
@@ -442,6 +447,20 @@ export default function MesPage() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-2">Ahorro del mes</h2>
+        <div className="w-full bg-gray-100 rounded-full h-3">
+          <div
+            className="bg-green-500 h-3 rounded-full transition-all"
+            style={{ width: `${progresoAhorro}%` }}
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Ahorraste ${resumen.ahorros.real.toFixed(2)} de ${resumen.ahorros.estimado.toFixed(2)} planificados (
+          {progresoAhorro}%)
+        </p>
       </div>
     </div>
   );

@@ -1,17 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { obtenerResumenMes } from "../api/dashboard";
 import { obtenerDetalleQuincenal } from "../api/tracker";
 
@@ -52,22 +40,6 @@ export default function DashboardMesPage() {
   const dataDona = resumenMes.gastosVariables.porCategoria
     .filter((c) => c.real > 0)
     .map((c) => ({ name: c.nombre, value: c.real }));
-
-  const dataBarras = [
-    { nombre: "Ingresos", estimado: resumenMes.ingresos.estimado, real: resumenMes.ingresos.real },
-    { nombre: "Ahorros", estimado: resumenMes.ahorros.estimado, real: resumenMes.ahorros.real },
-    { nombre: "Gastos fijos", estimado: resumenMes.gastosFijos.estimado, real: resumenMes.gastosFijos.real },
-    ...resumenMes.gastosVariables.porCategoria
-      .filter((c) => c.estimado !== null)
-      .map((c) => ({ nombre: c.nombre, estimado: c.estimado, real: c.real })),
-  ];
-
-  const progresoAhorro =
-    resumenMes.ahorros.estimado > 0
-      ? Math.min(100, Math.round((resumenMes.ahorros.real / resumenMes.ahorros.estimado) * 100))
-      : 0;
-
-  const sinEstimadoCompleto = resumenMes.gastosVariables.porCategoria.some((c) => c.estimado === null);
 
   return (
     <div className="space-y-6">
@@ -151,40 +123,6 @@ export default function DashboardMesPage() {
           </table>
         </div>
       )}
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Estimado vs Real</h2>
-        {sinEstimadoCompleto && (
-          <p className="text-xs text-gray-400 mb-2">
-            Algunas categorías variables no tienen estimado configurado y no aparecen aquí.
-          </p>
-        )}
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={dataBarras}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-            <Legend />
-            <Bar dataKey="estimado" fill="#c4b5fd" name="Estimado" />
-            <Bar dataKey="real" fill="#a855f7" name="Real" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">Ahorro del mes</h2>
-        <div className="w-full bg-gray-100 rounded-full h-3">
-          <div
-            className="bg-green-500 h-3 rounded-full transition-all"
-            style={{ width: `${progresoAhorro}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-500 mt-2">
-          Ahorraste ${resumenMes.ahorros.real.toFixed(2)} de ${resumenMes.ahorros.estimado.toFixed(2)} planificados (
-          {progresoAhorro}%)
-        </p>
-      </div>
     </div>
   );
 }

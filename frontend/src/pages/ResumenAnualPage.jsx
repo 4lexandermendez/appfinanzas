@@ -233,6 +233,21 @@ export default function ResumenAnualPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Estimado vs Real</h2>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={presupuestoAnual.map((c) => ({ nombre: c.nombre, Estimado: c.estimado, Real: c.real }))}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
+            <Legend />
+            <Bar dataKey="Estimado" fill="#c4b5fd" />
+            <Bar dataKey="Real" fill="#a855f7" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

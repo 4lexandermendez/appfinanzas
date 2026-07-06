@@ -29,11 +29,14 @@ const CONCEPTOS_TRACKER = [
 
 const MOTIVOS = ["VACACION", "ASUETO", "DESCANSO", "OTRO"];
 
-const CAMPOS_AJUSTE = [
+const CAMPOS_SEMANA = [
   { campo: "montoPasajeIda", etiqueta: "Pasaje ida (entre semana)" },
   { campo: "montoDesayuno", etiqueta: "Desayuno (entre semana)" },
   { campo: "montoAlmuerzo", etiqueta: "Almuerzo (entre semana)" },
   { campo: "montoPasajeRegreso", etiqueta: "Pasaje regreso (entre semana)" },
+];
+
+const CAMPOS_SABADO = [
   { campo: "montoPasajeSabadoIda", etiqueta: "Pasaje ida (sábado)" },
   { campo: "montoDesayunoSabado", etiqueta: "Desayuno (sábado)" },
   { campo: "montoPasajeSabadoRegreso", etiqueta: "Pasaje regreso (sábado)" },
@@ -79,20 +82,37 @@ function SeccionAjustesTracker() {
       <p className="text-xs text-gray-400">
         Estimado automático del Tracker de Transporte y Comida (Lunes a Viernes vs Sábado).
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        {CAMPOS_AJUSTE.map((c) => (
-          <div key={c.campo}>
-            <label className="block text-xs text-gray-500 mb-1">{c.etiqueta}</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form[c.campo] ?? ""}
-              onChange={(e) => setForm({ ...form, [c.campo]: e.target.value })}
-              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-            />
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          {CAMPOS_SEMANA.map((c) => (
+            <div key={c.campo}>
+              <label className="block text-xs text-gray-500 mb-1">{c.etiqueta}</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form[c.campo] ?? ""}
+                onChange={(e) => setForm({ ...form, [c.campo]: e.target.value })}
+                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2">
+          {CAMPOS_SABADO.map((c) => (
+            <div key={c.campo}>
+              <label className="block text-xs text-gray-500 mb-1">{c.etiqueta}</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form[c.campo] ?? ""}
+                onChange={(e) => setForm({ ...form, [c.campo]: e.target.value })}
+                className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="border-t border-gray-100 pt-3">

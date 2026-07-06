@@ -12,18 +12,28 @@ const DEFAULTS = [
   { tipo: "RESUMEN_GENERAL", porcentajeAlerta: null },
 ];
 
-async function asegurarDefaults(usuarioId) {
-  for (const config of DEFAULTS) {
-    await prisma.alertaConfig.upsert({
-      where: { usuarioId_tipo: { usuarioId, tipo: config.tipo } },
-      update: {},
-      create: { usuarioId, tipo: config.tipo, porcentajeAlerta: config.porcentajeAlerta, activo: true },
-    });
-  }
+// Antes se llamaba a upsert() una vez por cada tipo (5 ida-y-vuelta a la DB,
+// siempre, en cada llamada). Ahora se pide la lista una sola vez y solo se
+// crean en batch los tipos que de verdad faltan, así que en el caso normal
+// (ya existen los 5) esto es una sola consulta.
+async function asegurarDefaults(usuarioId, configsExistentes) {
+  const existentes = new Set(configsExistentes.map((c) => c.tipo));
+  const faltantes = DEFAULTS.filter((d) => !existentes.has(d.tipo));
+  if (faltantes.length === 0) return false;
+
+  await prisma.alertaConfig.createMany({
+    data: faltantes.map((d) => ({ usuarioId, tipo: d.tipo, porcentajeAlerta: d.porcentajeAlerta, activo: true })),
+    skipDuplicates: true,
+  });
+  return true;
 }
 
 async function listarConfig(usuarioId) {
-  await asegurarDefaults(usuarioId);
+  const configs = await prisma.alertaConfig.findMany({ where: { usuarioId }, orderBy: { tipo: "asc" } });
+  if (configs.length >= DEFAULTS.length) return configs;
+
+  const creoAlgo = await asegurarDefaults(usuarioId, configs);
+  if (!creoAlgo) return configs;
   return prisma.alertaConfig.findMany({ where: { usuarioId }, orderBy: { tipo: "asc" } });
 }
 

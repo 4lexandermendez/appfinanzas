@@ -23,9 +23,6 @@ export default function Layout() {
               <NavLink to="/mes" className={linkClase}>
                 Mes
               </NavLink>
-              <NavLink to="/dashboard" className={linkClase}>
-                Dashboard
-              </NavLink>
               <NavLink to="/presupuesto" className={linkClase}>
                 Presupuesto
               </NavLink>

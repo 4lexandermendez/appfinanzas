@@ -2,7 +2,6 @@ import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegistroPage from "./pages/RegistroPage";
 import RegistroRapidoPage from "./pages/RegistroRapidoPage";
-import DashboardMesPage from "./pages/DashboardMesPage";
 import PresupuestoPage from "./pages/PresupuestoPage";
 import TarjetasPage from "./pages/TarjetasPage";
 import ResumenAnualPage from "./pages/ResumenAnualPage";
@@ -26,7 +25,6 @@ function App() {
         }
       >
         <Route index element={<RegistroRapidoPage />} />
-        <Route path="dashboard" element={<DashboardMesPage />} />
         <Route path="presupuesto" element={<PresupuestoPage />} />
         <Route path="tarjetas" element={<TarjetasPage />} />
         <Route path="anual" element={<ResumenAnualPage />} />

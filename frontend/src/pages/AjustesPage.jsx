@@ -115,24 +115,30 @@ function SeccionAjustesTracker() {
         </div>
       </div>
 
-      <div className="border-t border-gray-100 pt-3">
-        <p className="text-xs text-gray-500 mb-2">Patrón de sábados alternos</p>
-        <div className="flex gap-2 items-center">
-          <input
-            type="date"
-            value={form.patronSabadoInicio?.slice(0, 10) ?? ""}
-            onChange={(e) => setForm({ ...form, patronSabadoInicio: e.target.value })}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          />
-          <label className="flex items-center gap-1 text-sm">
+      <div className="border-t border-gray-100 pt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs text-gray-500 mb-2">Patrón de sábados alternos</p>
+          <div className="flex gap-2 items-center">
             <input
-              type="checkbox"
-              checked={form.patronSabadoPrimerDiaVa}
-              onChange={(e) => setForm({ ...form, patronSabadoPrimerDiaVa: e.target.checked })}
-              className="accent-purple-600"
+              type="date"
+              value={form.patronSabadoInicio?.slice(0, 10) ?? ""}
+              onChange={(e) => setForm({ ...form, patronSabadoInicio: e.target.value })}
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
             />
-            Ese sábado sí voy
-          </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={form.patronSabadoPrimerDiaVa}
+                onChange={(e) => setForm({ ...form, patronSabadoPrimerDiaVa: e.target.checked })}
+                className="accent-purple-600"
+              />
+              Ese sábado sí voy
+            </label>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-2">Días libres</p>
+          <SeccionDiasLibres />
         </div>
       </div>
 
@@ -237,8 +243,7 @@ function SeccionDiasLibres() {
     cargar();
   }, []);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleMarcar() {
     await crearDiaLibre({ fecha, motivo });
     cargar();
   }
@@ -260,14 +265,14 @@ function SeccionDiasLibres() {
           <div key={d.id} className="flex items-center gap-2 text-sm">
             <span className="w-28">{d.fecha.slice(0, 10)}</span>
             <span className="text-gray-500">{d.motivo}</span>
-            <button onClick={() => handleEliminar(d.id)} className="text-red-500 hover:underline">
+            <button type="button" onClick={() => handleEliminar(d.id)} className="text-red-500 hover:underline">
               Eliminar
             </button>
           </div>
         ))}
         {dias.length === 0 && <p className="text-sm text-gray-400">Sin días libres este mes</p>}
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="flex gap-2">
         <input
           type="date"
           value={fecha}
@@ -283,10 +288,10 @@ function SeccionDiasLibres() {
             <option key={m} value={m}>{m}</option>
           ))}
         </select>
-        <button type="submit" className="bg-purple-100 text-purple-800 rounded px-3 py-1 text-sm hover:bg-purple-200">
+        <button type="button" onClick={handleMarcar} className="bg-purple-100 text-purple-800 rounded px-3 py-1 text-sm hover:bg-purple-200">
           Marcar
         </button>
-      </form>
+      </div>
     </div>
   );
 }
@@ -400,17 +405,10 @@ function SeccionAlertas() {
 export default function AjustesPage() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Ajustes del tracker</h2>
-          <SeccionAjustesTracker />
-        </section>
-
-        <section className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Días libres</h2>
-          <SeccionDiasLibres />
-        </section>
-      </div>
+      <section className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Ajustes del tracker</h2>
+        <SeccionAjustesTracker />
+      </section>
 
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>

@@ -11,6 +11,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
 } from "recharts";
 import { obtenerResumenAnual, obtenerResumenAnualCompleto } from "../api/dashboard";
 
@@ -109,6 +111,12 @@ export default function ResumenAnualPage() {
     .filter((c) => c.nombre !== "Ingresos" && c.real > 0)
     .map((c) => ({ name: c.nombre, value: c.real }));
 
+  const dataLinea = resumen.meses.map((m) => ({
+    mes: MESES_CORTOS[m.mes - 1],
+    Ingresos: m.ingresosReal,
+    Gastos: m.gastosReal,
+  }));
+
   return (
     <div className="space-y-6">
       <select
@@ -184,30 +192,47 @@ export default function ResumenAnualPage() {
         </table>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución del dinero (real)</h2>
-        {dataDistribucion.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center">Sin gastos registrados este año</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={dataDistribucion} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                {dataDistribucion.map((d) => (
-                  <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
       <TablaSeccion titulo="Ingresos" colorCabecera="bg-green-100 text-green-800" seccion={completo.ingresos} />
       <TablaSeccion titulo="Ahorros" colorCabecera="bg-blue-100 text-blue-800" seccion={completo.ahorros} />
       <TablaSeccion titulo="Gastos fijos" colorCabecera="bg-pink-100 text-pink-800" seccion={completo.gastosFijos} />
       <TablaSeccion titulo="Gastos variables" colorCabecera="bg-yellow-100 text-yellow-800" seccion={completo.gastosVariables} />
       <TablaSeccion titulo="Deudas" colorCabecera="bg-pink-100 text-pink-800" seccion={completo.deudas} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Distribución del dinero (real)</h2>
+          {dataDistribucion.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center">Sin gastos registrados este año</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={dataDistribucion} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                  {dataDistribucion.map((d) => (
+                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Ingresos vs Gastos ({anio})</h2>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={dataLinea}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
+              <Legend />
+              <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={2} />
+              <Line type="monotone" dataKey="Gastos" stroke="#ef4444" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }

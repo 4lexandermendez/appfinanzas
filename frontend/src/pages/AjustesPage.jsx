@@ -134,7 +134,6 @@ function SeccionAjustesTracker() {
             Ese sábado sí voy
           </label>
         </div>
-        <p className="text-xs text-gray-400 mt-1">Debe ser un día sábado. Ej. "el 4 de julio no voy" → fecha 2026-07-04, desmarcar.</p>
       </div>
 
       {mensaje && <p className="text-sm text-purple-700">{mensaje}</p>}
@@ -401,19 +400,21 @@ function SeccionAlertas() {
 export default function AjustesPage() {
   return (
     <div className="space-y-6">
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Ajustes del tracker</h2>
-        <SeccionAjustesTracker />
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Ajustes del tracker</h2>
+          <SeccionAjustesTracker />
+        </section>
+
+        <section className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Días libres</h2>
+          <SeccionDiasLibres />
+        </section>
+      </div>
 
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
         <SeccionBotonesRapidos />
-      </section>
-
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Días libres</h2>
-        <SeccionDiasLibres />
       </section>
 
       <section className="bg-white rounded-lg shadow p-6">

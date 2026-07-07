@@ -10,12 +10,97 @@ import { listarGastosFijosMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
 import { listarTransacciones, actualizarTransaccion } from "../api/transacciones";
 import { obtenerNotas, guardarNotas } from "../api/presupuestoMensual";
-import { obtenerDetalleQuincenal } from "../api/tracker";
+import { obtenerDetalleQuincenal, listarTracker } from "../api/tracker";
+import { listarDiasLibres } from "../api/diasLibres";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
+
+const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function diasEnElMes(anio, mes) {
+  return new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+}
+
+function diaSemanaUTC(anio, mes, dia) {
+  return new Date(Date.UTC(anio, mes - 1, dia)).getUTCDay(); // 0=Dom..6=Sáb
+}
+
+// Semanas de Lunes a Sábado (el Domingo no se muestra, igual que en el Excel
+// original y que Ajustes del Tracker, que solo distingue entre semana/sábado).
+function construirSemanas(anio, mes) {
+  const totalDias = diasEnElMes(anio, mes);
+  const semanas = [];
+  let semanaActual = Array(6).fill(null);
+  for (let dia = 1; dia <= totalDias; dia++) {
+    const dow = diaSemanaUTC(anio, mes, dia);
+    if (dow === 0) continue;
+    semanaActual[dow - 1] = dia;
+    if (dow === 6) {
+      semanas.push(semanaActual);
+      semanaActual = Array(6).fill(null);
+    }
+  }
+  if (semanaActual.some((d) => d !== null)) semanas.push(semanaActual);
+  return semanas;
+}
+
+function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
+  const semanas = construirSemanas(anio, mes);
+  const hoyISO = new Date().toISOString().slice(0, 10);
+
+  const totalPorDia = new Map();
+  for (const r of registrosTracker) {
+    const dia = Number(r.fecha.slice(8, 10));
+    totalPorDia.set(dia, (totalPorDia.get(dia) || 0) + Number(r.monto));
+  }
+  const librePorDia = new Map();
+  for (const d of diasLibres) {
+    librePorDia.set(Number(d.fecha.slice(8, 10)), d.motivo);
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">
+        Calendario semanal (Lunes a Sábado)
+      </div>
+      <table className="w-full text-sm text-center">
+        <thead className="text-gray-500">
+          <tr>
+            {DIAS_SEMANA.map((d) => (
+              <th key={d} className="px-2 py-2 font-medium">{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {semanas.map((semana, i) => (
+            <tr key={i} className="border-t border-gray-100">
+              {semana.map((dia, col) => {
+                if (dia === null) return <td key={col} className="px-2 py-2" />;
+                const fechaISO = `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+                const esHoy = fechaISO === hoyISO;
+                const motivo = librePorDia.get(dia);
+                const total = totalPorDia.get(dia);
+                return (
+                  <td key={col} className={`px-2 py-2 align-top ${motivo ? "bg-gray-50" : ""}`}>
+                    <div className={`text-xs ${esHoy ? "font-bold text-purple-700" : "text-gray-500"}`}>{dia}</div>
+                    {motivo ? (
+                      <div className="text-[10px] text-gray-400 mt-1">{motivo}</div>
+                    ) : total ? (
+                      <div className="text-xs text-gray-700 mt-1">{fmt(total)}</div>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#be185d" };
 
@@ -95,6 +180,8 @@ export default function MesPage() {
   const [notas, setNotas] = useState("");
   const [notasGuardando, setNotasGuardando] = useState(false);
   const [quincenal, setQuincenal] = useState(null);
+  const [registrosTracker, setRegistrosTracker] = useState([]);
+  const [diasLibres, setDiasLibres] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
@@ -108,7 +195,9 @@ export default function MesPage() {
       listarTransacciones(anio, mes),
       obtenerNotas(anio, mes),
       obtenerDetalleQuincenal(anio, mes).catch(() => null),
-    ]).then(([r, i, a, gf, d, t, n, q]) => {
+      listarTracker(anio, mes),
+      listarDiasLibres(anio, mes),
+    ]).then(([r, i, a, gf, d, t, n, q, rt, dl]) => {
       setResumen(r);
       setIngresos(i);
       setAhorros(a);
@@ -117,6 +206,8 @@ export default function MesPage() {
       setTransacciones(t);
       setNotas(n);
       setQuincenal(q);
+      setRegistrosTracker(rt);
+      setDiasLibres(dl);
       setCargando(false);
     });
   }, [anio, mes]);
@@ -318,6 +409,8 @@ export default function MesPage() {
           { clave: "diferencia", etiqueta: "Diferencia", derecha: true },
         ]}
       />
+
+      <CalendarioSemanal anio={anio} mes={mes} registrosTracker={registrosTracker} diasLibres={diasLibres} />
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">

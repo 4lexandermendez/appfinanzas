@@ -37,10 +37,13 @@ function construirSemanasCiclo(inicioISO, finISO) {
 }
 
 // Calendario del ciclo de facturación: del día siguiente al corte anterior
-// hasta el corte actual se puede seguir gastando (se va a cobrar en este
-// ciclo); del corte actual hasta el día de pago es la ventana para pagar.
+// hasta el corte actual se puede seguir gastando (se va a cobrar en ese
+// ciclo). Apenas pasa el corte se abre el siguiente periodo de gasto (para
+// la proxima factura) mientras todavia esta abierta la ventana de pago del
+// corte que acaba de pasar — por eso se muestran los dos ciclos seguidos,
+// cada uno con su propio corte y su propio pago.
 function CalendarioCiclo({ ciclo, movimientos }) {
-  const semanas = construirSemanasCiclo(ciclo.inicioCiclo, ciclo.pagoActual);
+  const semanas = construirSemanasCiclo(ciclo.inicioCiclo, ciclo.pagoSiguiente);
 
   const totalPorDia = new Map();
   for (const m of movimientos) {
@@ -49,18 +52,19 @@ function CalendarioCiclo({ ciclo, movimientos }) {
   }
 
   function estiloDia(fecha) {
-    if (fecha === ciclo.corteActual) return "bg-orange-100 border border-orange-400";
-    if (fecha === ciclo.pagoActual) return "bg-blue-100 border border-blue-400";
+    if (fecha === ciclo.corteActual || fecha === ciclo.corteSiguiente) return "bg-orange-100 border border-orange-400";
+    if (fecha === ciclo.pagoActual || fecha === ciclo.pagoSiguiente) return "bg-blue-100 border border-blue-400";
     if (fecha <= ciclo.corteActual) return "bg-white";
-    return "bg-blue-50/50";
+    if (fecha <= ciclo.corteSiguiente) return "bg-purple-50";
+    return "bg-green-50";
   }
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3">
-      <div className="flex items-center gap-4 text-xs mb-2">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-white border border-gray-300" /> Podés gastar</span>
+      <div className="flex items-center gap-4 text-xs mb-2 flex-wrap">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-white border border-gray-300" /> Ciclo actual</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-purple-50 border border-purple-200" /> Ciclo siguiente</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-orange-100 border border-orange-400" /> Corte</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-blue-50 border border-blue-200" /> Ventana de pago</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-blue-100 border border-blue-400" /> Pago</span>
       </div>
       <table className="w-full text-xs text-center border-collapse">
@@ -85,8 +89,12 @@ function CalendarioCiclo({ ciclo, movimientos }) {
                       {dia}
                       {esInicioMes && <span className="text-gray-400"> {MESES_CORTOS[Number(fecha.slice(5, 7)) - 1]}</span>}
                     </div>
-                    {fecha === ciclo.corteActual && <div className="text-[10px] text-orange-600 font-medium">Corte</div>}
-                    {fecha === ciclo.pagoActual && <div className="text-[10px] text-blue-600 font-medium">Pago</div>}
+                    {(fecha === ciclo.corteActual || fecha === ciclo.corteSiguiente) && (
+                      <div className="text-[10px] text-orange-600 font-medium">Corte</div>
+                    )}
+                    {(fecha === ciclo.pagoActual || fecha === ciclo.pagoSiguiente) && (
+                      <div className="text-[10px] text-blue-600 font-medium">Pago</div>
+                    )}
                     {total ? (
                       <div className={`text-[10px] mt-0.5 ${total < 0 ? "text-green-600" : "text-gray-700"}`}>
                         ${Math.abs(total).toFixed(2)}

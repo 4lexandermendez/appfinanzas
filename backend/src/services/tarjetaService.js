@@ -44,15 +44,21 @@ function corteAnteriorA(diaCorte, corteActual) {
   return new Date(Date.UTC(anioPrevio, mesPrevio, Math.min(diaCorte, ultimoDia)));
 }
 
-// Ciclo de facturacion vigente (o el que viene) de una tarjeta: el periodo
-// en que se puede gastar (corteAnterior+1 .. corteActual), el dia de corte,
-// y el dia de pago asociado a ESE corte (buscado a partir del corte, no de
-// hoy, para que quede ligado al ciclo correcto aunque el pago caiga ya en
-// el mes siguiente).
+// Ciclo de facturacion de una tarjeta, encadenado con el que le sigue: el
+// periodo en que se puede gastar (corteAnterior+1 .. corteActual), el dia
+// de corte, el dia de pago asociado a ESE corte, y ademas el corte y pago
+// del ciclo siguiente — porque apenas pasa el corte se abre un nuevo
+// periodo de gasto (para la siguiente factura) mientras todavia esta
+// abierta la ventana de pago del corte que acaba de pasar.
 function calcularCicloTarjeta(tarjeta, referencia = hoySinHora()) {
   const corteActual = proximaFechaDelMes(tarjeta.diaCorte, referencia);
   const corteAnterior = corteAnteriorA(tarjeta.diaCorte, corteActual);
   const pagoActual = proximaFechaDelMes(tarjeta.diaPago, corteActual);
+
+  const diaDespuesCorte = new Date(corteActual);
+  diaDespuesCorte.setUTCDate(diaDespuesCorte.getUTCDate() + 1);
+  const corteSiguiente = proximaFechaDelMes(tarjeta.diaCorte, diaDespuesCorte);
+  const pagoSiguiente = proximaFechaDelMes(tarjeta.diaPago, corteSiguiente);
 
   const inicioCiclo = new Date(corteAnterior);
   inicioCiclo.setUTCDate(inicioCiclo.getUTCDate() + 1);
@@ -62,6 +68,8 @@ function calcularCicloTarjeta(tarjeta, referencia = hoySinHora()) {
     corteAnterior: formatDateKey(corteAnterior),
     corteActual: formatDateKey(corteActual),
     pagoActual: formatDateKey(pagoActual),
+    corteSiguiente: formatDateKey(corteSiguiente),
+    pagoSiguiente: formatDateKey(pagoSiguiente),
   };
 }
 

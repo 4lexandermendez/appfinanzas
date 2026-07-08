@@ -25,7 +25,7 @@ model Usuario {
   categoriasVariables  CategoriaVariable[]
   metasAhorro          MetaAhorro[]
   tarjetasCredito      TarjetaCredito[]
-  ajusteTracker        AjusteTracker?
+  ajusteTracker        AjusteTracker[]
   diasLibres           DiaLibre[]
   botonesRapidosConfig BotonRapidoConfig[]
   alertasConfig        AlertaConfig[]
@@ -312,9 +312,15 @@ model MovimientoTarjeta {
 // AJUSTES DEL TRACKER (estimado automático transporte/comida)
 // ============================================================
 
+// Cada fila es una version vigente desde creadoEn en adelante (hasta la
+// siguiente version, si existe). Al guardar cambios se crea una fila nueva
+// en vez de sobreescribir, asi los dias ya pasados del mes conservan los
+// montos que estaban vigentes cuando ocurrieron, en vez de recalcularse con
+// el monto mas reciente.
 model AjusteTracker {
-  id        Int @id @default(autoincrement())
-  usuarioId Int @unique @map("usuario_id")
+  id        Int      @id @default(autoincrement())
+  usuarioId Int      @map("usuario_id")
+  creadoEn  DateTime @default(now()) @map("creado_en")
 
   montoPasajeIda           Decimal @map("monto_pasaje_ida") @db.Decimal(10, 2)
   montoDesayuno            Decimal @map("monto_desayuno") @db.Decimal(10, 2)
@@ -329,6 +335,7 @@ model AjusteTracker {
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
+  @@index([usuarioId, creadoEn])
   @@map("ajustes_tracker")
 }
 

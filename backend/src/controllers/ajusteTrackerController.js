@@ -12,7 +12,10 @@ const CAMPOS_MONTO = [
 ];
 
 async function obtener(req, res) {
-  const ajuste = await prisma.ajusteTracker.findUnique({ where: { usuarioId: req.usuarioId } });
+  const ajuste = await prisma.ajusteTracker.findFirst({
+    where: { usuarioId: req.usuarioId },
+    orderBy: { creadoEn: "desc" },
+  });
   res.json({ ajuste });
 }
 
@@ -49,11 +52,24 @@ async function guardar(req, res) {
     patronSabadoPrimerDiaVa: body.patronSabadoPrimerDiaVa,
   };
 
-  const ajuste = await prisma.ajusteTracker.upsert({
+  // Cada cambio crea una version nueva (vigente desde hoy en adelante) para
+  // no afectar retroactivamente el estimado de los dias ya pasados del mes
+  // — salvo que ya se haya guardado algo hoy mismo, en cuyo caso se
+  // sobreescribe esa misma version en vez de crear una por cada click.
+  const ultima = await prisma.ajusteTracker.findFirst({
     where: { usuarioId: req.usuarioId },
-    update: data,
-    create: { usuarioId: req.usuarioId, ...data },
+    orderBy: { creadoEn: "desc" },
   });
+
+  const ahora = new Date();
+  const inicioHoy = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
+
+  let ajuste;
+  if (ultima && new Date(ultima.creadoEn) >= inicioHoy) {
+    ajuste = await prisma.ajusteTracker.update({ where: { id: ultima.id }, data });
+  } else {
+    ajuste = await prisma.ajusteTracker.create({ data: { usuarioId: req.usuarioId, ...data } });
+  }
 
   res.json({ ajuste });
 }

@@ -31,8 +31,8 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
   const inicioAnio = new Date(Date.UTC(anio, 0, 1));
   const finAnio = new Date(Date.UTC(anio, 11, 31));
 
-  const [ajuste, diasLibres, presupuestos, categorias] = await Promise.all([
-    prisma.ajusteTracker.findUnique({ where: { usuarioId } }),
+  const [ajusteVersiones, diasLibres, presupuestos, categorias] = await Promise.all([
+    prisma.ajusteTracker.findMany({ where: { usuarioId }, orderBy: { creadoEn: "asc" } }),
     prisma.diaLibre.findMany({ where: { usuarioId, fecha: { gte: inicioAnio, lte: finAnio } } }),
     prisma.presupuestoMensual.findMany({
       where: { usuarioId, anio },
@@ -78,8 +78,8 @@ async function calcularResumenAnualCompleto(usuarioId, anio) {
 
     let transporteEstimado = 0;
     let comidaEstimado = 0;
-    if (ajuste) {
-      const est = calcularEstimadoMesPuro(ajuste, diasLibresSet, anio, mes);
+    if (ajusteVersiones.length > 0) {
+      const est = calcularEstimadoMesPuro(ajusteVersiones, diasLibresSet, anio, mes);
       transporteEstimado = redondear(est.totalPorConcepto.PASAJE_IDA + est.totalPorConcepto.PASAJE_REGRESO);
       comidaEstimado = redondear(est.totalPorConcepto.DESAYUNO + est.totalPorConcepto.ALMUERZO);
     }

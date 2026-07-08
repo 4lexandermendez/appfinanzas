@@ -8,6 +8,101 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const DIAS_SEMANA_DOM = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+function construirSemanasCiclo(inicioISO, finISO) {
+  const dias = [];
+  let cursor = new Date(`${inicioISO}T00:00:00Z`);
+  const fin = new Date(`${finISO}T00:00:00Z`);
+  while (cursor <= fin) {
+    dias.push(cursor.toISOString().slice(0, 10));
+    cursor = new Date(cursor.getTime() + 86400000);
+  }
+
+  const semanas = [];
+  let semana = Array(7).fill(null);
+  let col = new Date(`${dias[0]}T00:00:00Z`).getUTCDay();
+  for (const d of dias) {
+    semana[col] = d;
+    col++;
+    if (col === 7) {
+      semanas.push(semana);
+      semana = Array(7).fill(null);
+      col = 0;
+    }
+  }
+  if (semana.some((x) => x !== null)) semanas.push(semana);
+  return semanas;
+}
+
+// Calendario del ciclo de facturación: del día siguiente al corte anterior
+// hasta el corte actual se puede seguir gastando (se va a cobrar en este
+// ciclo); del corte actual hasta el día de pago es la ventana para pagar.
+function CalendarioCiclo({ ciclo, movimientos }) {
+  const semanas = construirSemanasCiclo(ciclo.inicioCiclo, ciclo.pagoActual);
+
+  const totalPorDia = new Map();
+  for (const m of movimientos) {
+    const fecha = m.fecha.slice(0, 10);
+    totalPorDia.set(fecha, (totalPorDia.get(fecha) || 0) + Number(m.monto));
+  }
+
+  function estiloDia(fecha) {
+    if (fecha === ciclo.corteActual) return "bg-orange-100 border border-orange-400";
+    if (fecha === ciclo.pagoActual) return "bg-blue-100 border border-blue-400";
+    if (fecha <= ciclo.corteActual) return "bg-white";
+    return "bg-blue-50/50";
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <div className="flex items-center gap-4 text-xs mb-2">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-white border border-gray-300" /> Podés gastar</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-orange-100 border border-orange-400" /> Corte</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-blue-50 border border-blue-200" /> Ventana de pago</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-blue-100 border border-blue-400" /> Pago</span>
+      </div>
+      <table className="w-full text-xs text-center border-collapse">
+        <thead className="text-gray-400">
+          <tr>
+            {DIAS_SEMANA_DOM.map((d) => (
+              <th key={d} className="px-1 py-1 font-medium">{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {semanas.map((semana, i) => (
+            <tr key={i}>
+              {semana.map((fecha, col) => {
+                if (!fecha) return <td key={col} className="px-1 py-1" />;
+                const dia = Number(fecha.slice(8, 10));
+                const esInicioMes = dia === 1;
+                const total = totalPorDia.get(fecha);
+                return (
+                  <td key={col} className={`px-1 py-1 align-top rounded ${estiloDia(fecha)}`}>
+                    <div className="text-gray-600">
+                      {dia}
+                      {esInicioMes && <span className="text-gray-400"> {MESES_CORTOS[Number(fecha.slice(5, 7)) - 1]}</span>}
+                    </div>
+                    {fecha === ciclo.corteActual && <div className="text-[10px] text-orange-600 font-medium">Corte</div>}
+                    {fecha === ciclo.pagoActual && <div className="text-[10px] text-blue-600 font-medium">Pago</div>}
+                    {total ? (
+                      <div className={`text-[10px] mt-0.5 ${total < 0 ? "text-green-600" : "text-gray-700"}`}>
+                        ${Math.abs(total).toFixed(2)}
+                      </div>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function NuevaTarjetaForm({ onSubmit }) {
   const [nombre, setNombre] = useState("");
   const [limite, setLimite] = useState("");
@@ -74,6 +169,7 @@ function MovimientoForm({ onSubmit }) {
 
 function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   const [expandida, setExpandida] = useState(false);
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [movimientos, setMovimientos] = useState([]);
 
   async function cargarMovimientos() {
@@ -81,9 +177,9 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   }
 
   useEffect(() => {
-    if (expandida) cargarMovimientos();
+    if (expandida || mostrarCalendario) cargarMovimientos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandida]);
+  }, [expandida, mostrarCalendario]);
 
   async function handleNuevoMovimiento(datos) {
     await crearMovimiento(tarjeta.id, datos);
@@ -130,12 +226,22 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
         </div>
       </div>
 
-      <button
-        onClick={() => setExpandida((v) => !v)}
-        className="text-purple-600 text-sm mt-3 hover:underline"
-      >
-        {expandida ? "Ocultar movimientos" : "Ver movimientos"}
-      </button>
+      <div className="flex gap-4 mt-3">
+        <button
+          onClick={() => setExpandida((v) => !v)}
+          className="text-purple-600 text-sm hover:underline"
+        >
+          {expandida ? "Ocultar movimientos" : "Ver movimientos"}
+        </button>
+        <button
+          onClick={() => setMostrarCalendario((v) => !v)}
+          className="text-purple-600 text-sm hover:underline"
+        >
+          {mostrarCalendario ? "Ocultar calendario" : "Ver calendario del ciclo"}
+        </button>
+      </div>
+
+      {mostrarCalendario && <CalendarioCiclo ciclo={info.ciclo} movimientos={movimientos} />}
 
       {expandida && (
         <div className="mt-3 border-t border-gray-100 pt-3">

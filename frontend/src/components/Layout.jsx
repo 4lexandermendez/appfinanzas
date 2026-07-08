@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -43,7 +44,9 @@ export default function Layout() {
         </div>
       </header>
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <Outlet />
+        <Suspense fallback={<div className="p-6 text-center text-gray-500">Cargando...</div>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

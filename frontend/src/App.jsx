@@ -1,14 +1,19 @@
+import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegistroPage from "./pages/RegistroPage";
-import RegistroRapidoPage from "./pages/RegistroRapidoPage";
-import PresupuestoPage from "./pages/PresupuestoPage";
-import TarjetasPage from "./pages/TarjetasPage";
-import ResumenAnualPage from "./pages/ResumenAnualPage";
-import AjustesPage from "./pages/AjustesPage";
-import MesPage from "./pages/MesPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
+
+// Cada pestaña se carga en su propio chunk (via Suspense en Layout.jsx) en
+// vez de ir todas en el bundle inicial — Anual y Mes en particular meten
+// Recharts, que es la libreria mas pesada del proyecto.
+const RegistroRapidoPage = lazy(() => import("./pages/RegistroRapidoPage"));
+const PresupuestoPage = lazy(() => import("./pages/PresupuestoPage"));
+const TarjetasPage = lazy(() => import("./pages/TarjetasPage"));
+const ResumenAnualPage = lazy(() => import("./pages/ResumenAnualPage"));
+const AjustesPage = lazy(() => import("./pages/AjustesPage"));
+const MesPage = lazy(() => import("./pages/MesPage"));
 
 function App() {
   return (

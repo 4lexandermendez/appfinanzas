@@ -230,7 +230,7 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
           Pago mínimo: ${info.pagoMinimo.toFixed(2)}
         </div>
         <div className="rounded px-3 py-2 bg-gray-50 text-gray-600">
-          Diferencia con pago total: ${info.diferenciaPago.toFixed(2)}
+          Pago total (de contado): ${info.pagoTotal.toFixed(2)}
         </div>
       </div>
 

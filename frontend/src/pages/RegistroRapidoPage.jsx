@@ -2,9 +2,12 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
-import { listarCategorias } from "../api/categorias";
+import { listarCategorias, crearCategoria } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
+import { listarTarjetas } from "../api/tarjetas";
+
+const NUEVA_CATEGORIA = "__nueva__";
 
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
@@ -60,9 +63,13 @@ export default function RegistroRapidoPage() {
   const [mensaje, setMensaje] = useState("");
 
   const [categoriaId, setCategoriaId] = useState(null);
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
   const [monto, setMonto] = useState("");
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
+  const [tarjetas, setTarjetas] = useState([]);
+  const [fuentePago, setFuentePago] = useState("EFECTIVO");
+  const [tarjetaId, setTarjetaId] = useState("");
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [gastoFijoId, setGastoFijoId] = useState("");
@@ -71,18 +78,20 @@ export default function RegistroRapidoPage() {
 
   async function cargarTodo() {
     const { anio, mes } = anioMes(fechaSeleccionada);
-    const [totales, botonesData, categoriasData, trackerMes, gastosFijosData] = await Promise.all([
+    const [totales, botonesData, categoriasData, trackerMes, gastosFijosData, tarjetasData] = await Promise.all([
       obtenerGastadoHoy(fechaSeleccionada),
       listarBotonesRapidos(),
       listarCategorias(),
       listarTracker(anio, mes),
       listarGastosFijosMensual(anio, mes),
+      listarTarjetas(),
     ]);
     setGastadoDia(totales.totalHoy);
     setBotones(botonesData);
     setCategorias(categoriasData);
     setRegistrosMes(trackerMes);
     setGastosFijos(gastosFijosData.gastosFijos);
+    setTarjetas(tarjetasData);
   }
 
   useEffect(() => {
@@ -130,15 +139,31 @@ export default function RegistroRapidoPage() {
   async function handleSubmitGasto(e) {
     e.preventDefault();
     setMensaje("");
-    if (!categoriaId) {
-      setMensaje("Elige una categoría");
+    const esNueva = categoriaId === NUEVA_CATEGORIA;
+    if (!categoriaId || (esNueva && !nuevaCategoriaNombre.trim())) {
+      setMensaje(esNueva ? "Escribí el nombre de la categoría nueva" : "Elige una categoría");
+      return;
+    }
+    if (fuentePago === "TARJETA" && !tarjetaId) {
+      setMensaje("Elige con qué tarjeta pagaste");
       return;
     }
     setEnviandoForm(true);
     try {
-      await crearTransaccion({ categoriaId: Number(categoriaId), monto: Number(monto), fecha: fechaSeleccionada });
+      const idFinal = esNueva ? (await crearCategoria(nuevaCategoriaNombre.trim())).id : Number(categoriaId);
+      await crearTransaccion({
+        categoriaId: idFinal,
+        monto: Number(monto),
+        fecha: fechaSeleccionada,
+        fuente: fuentePago,
+        tarjetaId: fuentePago === "TARJETA" ? Number(tarjetaId) : undefined,
+      });
       setMonto("");
       setCategoriaId("");
+      setNuevaCategoriaNombre("");
+      setFuentePago("EFECTIVO");
+      setTarjetaId("");
+      await cargarTodo();
       const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
       setMensaje("Gasto registrado");
@@ -322,7 +347,17 @@ export default function RegistroRapidoPage() {
                   {cat.nombre}
                 </option>
               ))}
+              <option value={NUEVA_CATEGORIA}>+ Imprevisto (categoría nueva)</option>
             </select>
+            {categoriaId === NUEVA_CATEGORIA && (
+              <input
+                type="text"
+                placeholder="Nombre de la categoría (ej. Emergencia carro)"
+                value={nuevaCategoriaNombre}
+                onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              />
+            )}
           </div>
 
           <div>
@@ -336,6 +371,32 @@ export default function RegistroRapidoPage() {
               onChange={(e) => setMonto(e.target.value)}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
+            <select
+              value={fuentePago}
+              onChange={(e) => setFuentePago(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="TARJETA">Tarjeta de crédito</option>
+            </select>
+            {fuentePago === "TARJETA" && (
+              <select
+                value={tarjetaId}
+                onChange={(e) => setTarjetaId(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              >
+                <option value="">-- Elegir tarjeta --</option>
+                {tarjetas.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <button

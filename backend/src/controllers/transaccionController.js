@@ -63,6 +63,9 @@ async function crear(req, res) {
   if (!FUENTES_VALIDAS.includes(fuenteFinal)) {
     return res.status(400).json({ error: "fuente debe ser EFECTIVO o TARJETA" });
   }
+  if (fuenteFinal === "TARJETA" && !tarjetaId) {
+    return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
+  }
 
   const categoria = await validarCategoria(req.usuarioId, Number(categoriaId));
   if (!categoria) {
@@ -76,17 +79,41 @@ async function crear(req, res) {
   const mes = fechaParsed.getUTCMonth() + 1;
   const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, anio, mes);
 
-  const transaccion = await prisma.transaccion.create({
-    data: {
-      presupuestoId: presupuesto.id,
-      categoriaId: categoria.id,
-      monto: montoNum,
-      fecha: fechaParsed,
-      notas: notas || null,
-      fuente: fuenteFinal,
-      tarjetaId: tarjetaId ? Number(tarjetaId) : null,
-    },
-    include: { categoria: true },
+  // Si se paga con tarjeta, ademas de la transaccion se crea el movimiento
+  // en la tarjeta (vinculado via transaccionId) y se suma el monto al saldo
+  // — asi el gasto variable pagado con tarjeta ya queda reflejado ahi, sin
+  // tener que registrarlo dos veces.
+  const transaccion = await prisma.$transaction(async (tx) => {
+    const creada = await tx.transaccion.create({
+      data: {
+        presupuestoId: presupuesto.id,
+        categoriaId: categoria.id,
+        monto: montoNum,
+        fecha: fechaParsed,
+        notas: notas || null,
+        fuente: fuenteFinal,
+        tarjetaId: tarjetaId ? Number(tarjetaId) : null,
+      },
+      include: { categoria: true },
+    });
+
+    if (fuenteFinal === "TARJETA" && creada.tarjetaId) {
+      await tx.movimientoTarjeta.create({
+        data: {
+          tarjetaId: creada.tarjetaId,
+          monto: montoNum,
+          fecha: fechaParsed,
+          descripcion: creada.categoria.nombre,
+          transaccionId: creada.id,
+        },
+      });
+      await tx.tarjetaCredito.update({
+        where: { id: creada.tarjetaId },
+        data: { saldoActual: { increment: montoNum } },
+      });
+    }
+
+    return creada;
   });
 
   res.status(201).json({ transaccion });
@@ -96,7 +123,7 @@ async function actualizar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.transaccion.findUnique({
     where: { id },
-    include: { presupuesto: true },
+    include: { presupuesto: true, movimientoTarjeta: true },
   });
   if (!existente || existente.presupuesto.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Transacción no encontrada" });
@@ -153,10 +180,30 @@ async function actualizar(req, res) {
     data.tarjetaId = tarjetaId ? Number(tarjetaId) : null;
   }
 
-  const transaccion = await prisma.transaccion.update({
-    where: { id },
-    data,
-    include: { categoria: true },
+  // Si esta transaccion ya tenia un movimiento en una tarjeta vinculado y
+  // cambia el monto o la fecha, se actualiza tambien el movimiento y se
+  // ajusta el saldo de la tarjeta por la diferencia, para que no queden
+  // desincronizados.
+  const transaccion = await prisma.$transaction(async (tx) => {
+    const actualizada = await tx.transaccion.update({ where: { id }, data, include: { categoria: true } });
+
+    if (existente.movimientoTarjeta) {
+      const movimientoData = {};
+      if (data.monto !== undefined) movimientoData.monto = data.monto;
+      if (data.fecha !== undefined) movimientoData.fecha = data.fecha;
+      if (Object.keys(movimientoData).length > 0) {
+        await tx.movimientoTarjeta.update({ where: { id: existente.movimientoTarjeta.id }, data: movimientoData });
+      }
+      if (data.monto !== undefined) {
+        const delta = data.monto - Number(existente.movimientoTarjeta.monto);
+        await tx.tarjetaCredito.update({
+          where: { id: existente.movimientoTarjeta.tarjetaId },
+          data: { saldoActual: { increment: delta } },
+        });
+      }
+    }
+
+    return actualizada;
   });
 
   res.json({ transaccion });
@@ -166,13 +213,25 @@ async function eliminar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.transaccion.findUnique({
     where: { id },
-    include: { presupuesto: true },
+    include: { presupuesto: true, movimientoTarjeta: true },
   });
   if (!existente || existente.presupuesto.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Transacción no encontrada" });
   }
 
-  await prisma.transaccion.delete({ where: { id } });
+  // Si tiene un movimiento de tarjeta vinculado hay que borrarlo primero
+  // (la FK no tiene cascade) y devolver el monto al saldo de la tarjeta.
+  await prisma.$transaction(async (tx) => {
+    if (existente.movimientoTarjeta) {
+      await tx.movimientoTarjeta.delete({ where: { id: existente.movimientoTarjeta.id } });
+      await tx.tarjetaCredito.update({
+        where: { id: existente.movimientoTarjeta.tarjetaId },
+        data: { saldoActual: { decrement: Number(existente.movimientoTarjeta.monto) } },
+      });
+    }
+    await tx.transaccion.delete({ where: { id } });
+  });
+
   res.status(204).send();
 }
 

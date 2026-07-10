@@ -19,6 +19,11 @@ export async function eliminarTarjeta(id) {
   await client.delete(`/tarjetas/${id}`);
 }
 
+export async function pagarTarjeta(id) {
+  const { data } = await client.post(`/tarjetas/${id}/pagar`);
+  return data.tarjeta;
+}
+
 export async function listarMovimientos(tarjetaId) {
   const { data } = await client.get(`/tarjetas/${tarjetaId}/movimientos`);
   return data.movimientos;

@@ -104,4 +104,32 @@ async function eliminar(req, res) {
   res.status(204).send();
 }
 
-module.exports = { listar, crear, actualizar, eliminar };
+// Paga el saldo completo de una sola vez: crea el movimiento de pago (monto
+// negativo) y deja saldoActual en 0. Es el atajo de "ya pagué esto" en vez
+// de tener que calcular el monto a mano en el formulario de movimientos.
+async function pagar(req, res) {
+  const id = Number(req.params.id);
+  const existente = await prisma.tarjetaCredito.findUnique({ where: { id } });
+  if (!existente || existente.usuarioId !== req.usuarioId) {
+    return res.status(404).json({ error: "Tarjeta no encontrada" });
+  }
+
+  const saldo = Number(existente.saldoActual);
+  if (saldo <= 0) {
+    return res.status(400).json({ error: "Esta tarjeta no tiene saldo pendiente" });
+  }
+
+  const hoy = new Date();
+  const fechaHoy = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+
+  const [, tarjeta] = await prisma.$transaction([
+    prisma.movimientoTarjeta.create({
+      data: { tarjetaId: id, monto: -saldo, fecha: fechaHoy, descripcion: "Pago total" },
+    }),
+    prisma.tarjetaCredito.update({ where: { id }, data: { saldoActual: 0 } }),
+  ]);
+
+  res.json({ tarjeta: { ...tarjeta, info: calcularInfoTarjeta(tarjeta) } });
+}
+
+module.exports = { listar, crear, actualizar, eliminar, pagar };

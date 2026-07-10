@@ -44,32 +44,43 @@ function corteAnteriorA(diaCorte, corteActual) {
   return new Date(Date.UTC(anioPrevio, mesPrevio, Math.min(diaCorte, ultimoDia)));
 }
 
-// Ciclo de facturacion de una tarjeta, encadenado con el que le sigue: el
-// periodo en que se puede gastar (corteAnterior+1 .. corteActual), el dia
-// de corte, el dia de pago asociado a ESE corte, y ademas el corte y pago
-// del ciclo siguiente — porque apenas pasa el corte se abre un nuevo
-// periodo de gasto (para la siguiente factura) mientras todavia esta
-// abierta la ventana de pago del corte que acaba de pasar.
+function fechaEnMesConDia(diaDelMes, anio, mes) {
+  const ultimoDia = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(anio, mes, Math.min(diaDelMes, ultimoDia)));
+}
+
+// Ciclo de facturacion de una tarjeta, con los dos cortes relevantes:
+//
+// - corteVencido: el ultimo corte que ya paso (<= hoy) — es el que hay que
+//   pagar, con vencimiento en pagoVencido.
+// - corteProximo: el corte que viene — es la fecha limite del periodo en el
+//   que se puede gastar AHORA (de corteVencido+1 en adelante), con su
+//   propio pago en pagoProximo.
+//
+// Se separan los dos porque apenas pasa un corte se abre un nuevo periodo
+// de gasto para la siguiente factura, mientras todavia esta pendiente de
+// pago la que acaba de cerrar.
 function calcularCicloTarjeta(tarjeta, referencia = hoySinHora()) {
-  const corteActual = proximaFechaDelMes(tarjeta.diaCorte, referencia);
-  const corteAnterior = corteAnteriorA(tarjeta.diaCorte, corteActual);
-  const pagoActual = proximaFechaDelMes(tarjeta.diaPago, corteActual);
+  const corteEsteMes = fechaEnMesConDia(tarjeta.diaCorte, referencia.getUTCFullYear(), referencia.getUTCMonth());
+  const corteVencido = corteEsteMes <= referencia ? corteEsteMes : corteAnteriorA(tarjeta.diaCorte, corteEsteMes);
+  const corteAntesDelVencido = corteAnteriorA(tarjeta.diaCorte, corteVencido);
 
-  const diaDespuesCorte = new Date(corteActual);
-  diaDespuesCorte.setUTCDate(diaDespuesCorte.getUTCDate() + 1);
-  const corteSiguiente = proximaFechaDelMes(tarjeta.diaCorte, diaDespuesCorte);
-  const pagoSiguiente = proximaFechaDelMes(tarjeta.diaPago, corteSiguiente);
+  const diaDespuesDelVencido = new Date(corteVencido);
+  diaDespuesDelVencido.setUTCDate(diaDespuesDelVencido.getUTCDate() + 1);
+  const corteProximo = proximaFechaDelMes(tarjeta.diaCorte, diaDespuesDelVencido);
 
-  const inicioCiclo = new Date(corteAnterior);
-  inicioCiclo.setUTCDate(inicioCiclo.getUTCDate() + 1);
+  const pagoVencido = proximaFechaDelMes(tarjeta.diaPago, corteVencido);
+  const pagoProximo = proximaFechaDelMes(tarjeta.diaPago, corteProximo);
+
+  const inicioCicloVencido = new Date(corteAntesDelVencido);
+  inicioCicloVencido.setUTCDate(inicioCicloVencido.getUTCDate() + 1);
 
   return {
-    inicioCiclo: formatDateKey(inicioCiclo),
-    corteAnterior: formatDateKey(corteAnterior),
-    corteActual: formatDateKey(corteActual),
-    pagoActual: formatDateKey(pagoActual),
-    corteSiguiente: formatDateKey(corteSiguiente),
-    pagoSiguiente: formatDateKey(pagoSiguiente),
+    inicioCicloVencido: formatDateKey(inicioCicloVencido),
+    corteVencido: formatDateKey(corteVencido),
+    pagoVencido: formatDateKey(pagoVencido),
+    corteProximo: formatDateKey(corteProximo),
+    pagoProximo: formatDateKey(pagoProximo),
   };
 }
 

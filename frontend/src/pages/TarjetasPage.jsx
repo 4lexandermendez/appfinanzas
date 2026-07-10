@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  listarTarjetas, crearTarjeta, eliminarTarjeta,
+  listarTarjetas, crearTarjeta, eliminarTarjeta, pagarTarjeta,
   listarMovimientos, crearMovimiento, eliminarMovimiento,
 } from "../api/tarjetas";
 
@@ -36,14 +36,20 @@ function construirSemanasCiclo(inicioISO, finISO) {
   return semanas;
 }
 
-// Calendario del ciclo de facturación: del día siguiente al corte anterior
-// hasta el corte actual se puede seguir gastando (se va a cobrar en ese
-// ciclo). Apenas pasa el corte se abre el siguiente periodo de gasto (para
-// la proxima factura) mientras todavia esta abierta la ventana de pago del
-// corte que acaba de pasar — por eso se muestran los dos ciclos seguidos,
-// cada uno con su propio corte y su propio pago.
-function CalendarioCiclo({ ciclo, movimientos }) {
-  const semanas = construirSemanasCiclo(ciclo.inicioCiclo, ciclo.pagoSiguiente);
+function sumarDiaISO(fechaISO, dias) {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+// Calendario del ciclo de facturación. Si todavía hay saldo pendiente
+// (hayDeuda), se muestra el ciclo ya vencido (el que hay que pagar, del día
+// siguiente a su corte anterior hasta su propio pago) seguido del ciclo
+// nuevo que ya se abrió para seguir gastando. Una vez pagado el saldo, el
+// ciclo vencido desaparece y solo queda el nuevo.
+function CalendarioCiclo({ ciclo, movimientos, hayDeuda }) {
+  const inicio = hayDeuda ? ciclo.inicioCicloVencido : sumarDiaISO(ciclo.corteVencido, 1);
+  const semanas = construirSemanasCiclo(inicio, ciclo.pagoProximo);
 
   const totalPorDia = new Map();
   for (const m of movimientos) {
@@ -52,18 +58,20 @@ function CalendarioCiclo({ ciclo, movimientos }) {
   }
 
   function estiloDia(fecha) {
-    if (fecha === ciclo.corteActual || fecha === ciclo.corteSiguiente) return "bg-orange-100 border border-orange-400";
-    if (fecha === ciclo.pagoActual || fecha === ciclo.pagoSiguiente) return "bg-blue-100 border border-blue-400";
-    if (fecha <= ciclo.corteActual) return "bg-white";
-    if (fecha <= ciclo.corteSiguiente) return "bg-purple-50";
+    if (fecha === ciclo.corteVencido || fecha === ciclo.corteProximo) return "bg-orange-100 border border-orange-400";
+    if (fecha === ciclo.pagoVencido || fecha === ciclo.pagoProximo) return "bg-blue-100 border border-blue-400";
+    if (hayDeuda && fecha <= ciclo.corteVencido) return "bg-white";
+    if (fecha <= ciclo.corteProximo) return "bg-purple-50";
     return "bg-green-50";
   }
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3">
       <div className="flex items-center gap-4 text-xs mb-2 flex-wrap">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-white border border-gray-300" /> Ciclo actual</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-purple-50 border border-purple-200" /> Ciclo siguiente</span>
+        {hayDeuda && (
+          <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-white border border-gray-300" /> Ciclo por pagar</span>
+        )}
+        <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-purple-50 border border-purple-200" /> Ciclo nuevo (podés gastar)</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-orange-100 border border-orange-400" /> Corte</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-blue-100 border border-blue-400" /> Pago</span>
       </div>
@@ -89,10 +97,10 @@ function CalendarioCiclo({ ciclo, movimientos }) {
                       {dia}
                       {esInicioMes && <span className="text-gray-400"> {MESES_CORTOS[Number(fecha.slice(5, 7)) - 1]}</span>}
                     </div>
-                    {(fecha === ciclo.corteActual || fecha === ciclo.corteSiguiente) && (
+                    {(fecha === ciclo.corteVencido || fecha === ciclo.corteProximo) && (
                       <div className="text-[10px] text-orange-600 font-medium">Corte</div>
                     )}
-                    {(fecha === ciclo.pagoActual || fecha === ciclo.pagoSiguiente) && (
+                    {(fecha === ciclo.pagoVencido || fecha === ciclo.pagoProximo) && (
                       <div className="text-[10px] text-blue-600 font-medium">Pago</div>
                     )}
                     {total ? (
@@ -200,9 +208,22 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
     onRefrescar();
   }
 
+  const [pagando, setPagando] = useState(false);
+  async function handlePagar() {
+    setPagando(true);
+    try {
+      await pagarTarjeta(tarjeta.id);
+      await cargarMovimientos();
+      onRefrescar();
+    } finally {
+      setPagando(false);
+    }
+  }
+
   const { info } = tarjeta;
   const corteUrgente = info.diasParaCorte <= 3;
   const pagoUrgente = info.diasParaPago <= 3;
+  const hayDeuda = Number(tarjeta.saldoActual) > 0;
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -214,9 +235,20 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
             {info.disponible.toFixed(2)})
           </p>
         </div>
-        <button onClick={() => onEliminar(tarjeta.id)} className="text-red-500 text-sm hover:underline">
-          Eliminar
-        </button>
+        <div className="flex items-center gap-3">
+          {hayDeuda && (
+            <button
+              onClick={handlePagar}
+              disabled={pagando}
+              className="text-green-700 text-sm hover:underline disabled:opacity-50"
+            >
+              {pagando ? "Pagando..." : "Pagar saldo total"}
+            </button>
+          )}
+          <button onClick={() => onEliminar(tarjeta.id)} className="text-red-500 text-sm hover:underline">
+            Eliminar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
@@ -249,7 +281,7 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
         </button>
       </div>
 
-      {mostrarCalendario && <CalendarioCiclo ciclo={info.ciclo} movimientos={movimientos} />}
+      {mostrarCalendario && <CalendarioCiclo ciclo={info.ciclo} movimientos={movimientos} hayDeuda={hayDeuda} />}
 
       {expandida && (
         <div className="mt-3 border-t border-gray-100 pt-3">

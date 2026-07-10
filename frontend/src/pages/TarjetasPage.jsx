@@ -301,7 +301,7 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
               <div key={m.id} className="flex items-center gap-2 text-sm">
                 <span className="text-gray-400 w-24">{m.fecha.slice(0, 10)}</span>
                 <span className={`w-20 ${Number(m.monto) < 0 ? "text-green-600" : "text-gray-800"}`}>
-                  ${Number(m.monto).toFixed(2)}
+                  ${Math.abs(Number(m.monto)).toFixed(2)}
                 </span>
                 <span className="flex-1 text-gray-500">{m.descripcion}</span>
                 <button onClick={() => handleEliminarMovimiento(m.id)} className="text-red-500 hover:underline">

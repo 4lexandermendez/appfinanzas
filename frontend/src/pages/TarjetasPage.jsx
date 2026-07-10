@@ -220,10 +220,21 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
     }
   }
 
+  const [verHistorialCompleto, setVerHistorialCompleto] = useState(false);
+
   const { info } = tarjeta;
   const corteUrgente = info.diasParaCorte <= 3;
   const pagoUrgente = info.diasParaPago <= 3;
   const hayDeuda = Number(tarjeta.saldoActual) > 0;
+
+  // Una vez pagado el ciclo vencido, sus movimientos ya no se muestran en
+  // la lista (no se borran, solo se ocultan) — asi el historial visible
+  // arranca limpio con el ciclo nuevo. "Ver historial completo" los trae
+  // de vuelta sin tener que borrar nada.
+  const movimientosVisibles =
+    verHistorialCompleto || hayDeuda
+      ? movimientos
+      : movimientos.filter((m) => m.fecha.slice(0, 10) > info.ciclo.corteVencido);
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -286,7 +297,7 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
       {expandida && (
         <div className="mt-3 border-t border-gray-100 pt-3">
           <div className="space-y-1">
-            {movimientos.map((m) => (
+            {movimientosVisibles.map((m) => (
               <div key={m.id} className="flex items-center gap-2 text-sm">
                 <span className="text-gray-400 w-24">{m.fecha.slice(0, 10)}</span>
                 <span className={`w-20 ${Number(m.monto) < 0 ? "text-green-600" : "text-gray-800"}`}>
@@ -298,8 +309,16 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
                 </button>
               </div>
             ))}
-            {movimientos.length === 0 && <p className="text-sm text-gray-400">Sin movimientos</p>}
+            {movimientosVisibles.length === 0 && <p className="text-sm text-gray-400">Sin movimientos en el ciclo actual</p>}
           </div>
+          {!hayDeuda && movimientos.length > movimientosVisibles.length && (
+            <button
+              onClick={() => setVerHistorialCompleto((v) => !v)}
+              className="text-purple-600 text-xs mt-2 hover:underline"
+            >
+              {verHistorialCompleto ? "Ocultar ciclos ya pagados" : "Ver historial completo (ciclos ya pagados)"}
+            </button>
+          )}
           <MovimientoForm onSubmit={handleNuevoMovimiento} />
         </div>
       )}

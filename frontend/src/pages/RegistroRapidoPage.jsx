@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
@@ -22,12 +22,6 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function sumarDias(fechaISO, dias) {
-  const d = new Date(`${fechaISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
-}
-
 function diaDelMes(fechaISO) {
   return new Date(`${fechaISO}T00:00:00Z`).getUTCDate();
 }
@@ -48,11 +42,18 @@ function formatoFechaLarga(fechaISO) {
 
 export default function RegistroRapidoPage() {
   const hoyReal = useMemo(() => hoyISO(), []);
+  // Todo el mes (1 al 28/29/30/31, segun corresponda) para poder registrar
+  // gastos de dias pasados que se te hayan olvidado, no solo ±3 dias.
   const ventanaDias = useMemo(() => {
+    const { anio, mes } = anioMes(hoyReal);
+    const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
     const dias = [];
-    for (let offset = -3; offset <= 3; offset++) dias.push(sumarDias(hoyReal, offset));
+    for (let dia = 1; dia <= ultimoDia; dia++) {
+      dias.push(`${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`);
+    }
     return dias;
   }, [hoyReal]);
+  const botonHoyRef = useRef(null);
 
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
   const [gastadoDia, setGastadoDia] = useState(null);
@@ -98,6 +99,10 @@ export default function RegistroRapidoPage() {
     cargarTodo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
+
+  useEffect(() => {
+    botonHoyRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, []);
 
   const diasConRegistro = useMemo(
     () => new Set(registrosMes.map((r) => r.fecha.slice(0, 10))),
@@ -210,7 +215,7 @@ export default function RegistroRapidoPage() {
           {gastadoDia === null ? "..." : `$${gastadoDia.toFixed(2)}`}
         </p>
 
-        <div className="flex justify-center gap-1 mt-4 overflow-x-auto">
+        <div className="flex justify-start gap-1 mt-4 overflow-x-auto">
           {ventanaDias.map((f) => {
             const seleccionado = f === fechaSeleccionada;
             const esHoy = f === hoyReal;
@@ -219,6 +224,7 @@ export default function RegistroRapidoPage() {
             return (
               <button
                 key={f}
+                ref={esHoy ? botonHoyRef : null}
                 type="button"
                 onClick={() => setFechaSeleccionada(f)}
                 className={`flex flex-col items-center justify-center w-11 h-14 rounded-lg text-xs shrink-0 transition-colors ${

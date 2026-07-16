@@ -43,7 +43,7 @@ function anioMes(fechaISO) {
 
 function formatoFechaLarga(fechaISO) {
   const d = new Date(`${fechaISO}T00:00:00Z`);
-  return d.toLocaleDateString("es", { day: "numeric", month: "long" });
+  return d.toLocaleDateString("es", { day: "numeric", month: "long", timeZone: "UTC" });
 }
 
 export default function RegistroRapidoPage() {

@@ -76,6 +76,8 @@ export default function RegistroRapidoPage() {
   const [gastoFijoId, setGastoFijoId] = useState("");
   const [montoFijo, setMontoFijo] = useState("");
   const [enviandoFijo, setEnviandoFijo] = useState(false);
+  const [fuentePagoFijo, setFuentePagoFijo] = useState("EFECTIVO");
+  const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
 
   async function cargarTodo() {
     const { anio, mes } = anioMes(fechaSeleccionada);
@@ -186,6 +188,10 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige un gasto fijo y su monto");
       return;
     }
+    if (fuentePagoFijo === "TARJETA" && !tarjetaIdFijo) {
+      setMensaje("Elige con qué tarjeta pagaste");
+      return;
+    }
     setEnviandoFijo(true);
     try {
       const { anio, mes } = anioMes(fechaSeleccionada);
@@ -194,9 +200,13 @@ export default function RegistroRapidoPage() {
         anio,
         mes,
         montoReal: Number(montoFijo),
+        fuente: fuentePagoFijo,
+        tarjetaId: fuentePagoFijo === "TARJETA" ? Number(tarjetaIdFijo) : undefined,
       });
       setGastoFijoId("");
       setMontoFijo("");
+      setFuentePagoFijo("EFECTIVO");
+      setTarjetaIdFijo("");
       setMensaje("Gasto fijo marcado como pagado");
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
@@ -448,6 +458,32 @@ export default function RegistroRapidoPage() {
               onChange={(e) => setMontoFijo(e.target.value)}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
+            <select
+              value={fuentePagoFijo}
+              onChange={(e) => setFuentePagoFijo(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="TARJETA">Tarjeta de crédito</option>
+            </select>
+            {fuentePagoFijo === "TARJETA" && (
+              <select
+                value={tarjetaIdFijo}
+                onChange={(e) => setTarjetaIdFijo(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              >
+                <option value="">-- Elegir tarjeta --</option>
+                {tarjetas.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <button

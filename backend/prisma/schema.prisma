@@ -85,14 +85,18 @@ model GastoFijoConfig {
 // No estaba en el borrador original: sin esto no había forma de
 // guardar la columna "Real" de Gastos Fijos por mes.
 model GastoFijoMensual {
-  id                Int      @id @default(autoincrement())
-  presupuestoId     Int      @map("presupuesto_id")
-  gastoFijoConfigId Int      @map("gasto_fijo_config_id")
-  montoEstimado     Decimal? @map("monto_estimado") @db.Decimal(10, 2)
-  montoReal         Decimal? @map("monto_real") @db.Decimal(10, 2)
+  id                Int               @id @default(autoincrement())
+  presupuestoId     Int               @map("presupuesto_id")
+  gastoFijoConfigId Int               @map("gasto_fijo_config_id")
+  montoEstimado     Decimal?          @map("monto_estimado") @db.Decimal(10, 2)
+  montoReal         Decimal?          @map("monto_real") @db.Decimal(10, 2)
+  fuente            FuenteTransaccion @default(EFECTIVO)
+  tarjetaId         Int?              @map("tarjeta_id")
 
-  presupuesto     PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
-  gastoFijoConfig GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
+  presupuesto       PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  gastoFijoConfig   GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
+  tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
+  movimientoTarjeta MovimientoTarjeta?
 
   @@unique([presupuestoId, gastoFijoConfigId])
   @@map("gastos_fijos_mensual")
@@ -287,23 +291,26 @@ model TarjetaCredito {
   // pago mínimo y pago total" que pide la sección 3 de PLANIFICACION.md.
   porcentajePagoMinimo Decimal @default(5) @map("porcentaje_pago_minimo") @db.Decimal(5, 2)
 
-  usuario       Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  movimientos   MovimientoTarjeta[]
-  transacciones Transaccion[]
+  usuario          Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  movimientos      MovimientoTarjeta[]
+  transacciones    Transaccion[]
+  gastosFijosMes   GastoFijoMensual[]
 
   @@map("tarjetas_credito")
 }
 
 model MovimientoTarjeta {
-  id            Int      @id @default(autoincrement())
-  tarjetaId     Int      @map("tarjeta_id")
-  monto         Decimal  @db.Decimal(10, 2)
-  fecha         DateTime @db.Date
-  descripcion   String?
-  transaccionId Int?     @unique @map("transaccion_id")
+  id                 Int      @id @default(autoincrement())
+  tarjetaId          Int      @map("tarjeta_id")
+  monto              Decimal  @db.Decimal(10, 2)
+  fecha              DateTime @db.Date
+  descripcion        String?
+  transaccionId      Int?     @unique @map("transaccion_id")
+  gastoFijoMensualId Int?     @unique @map("gasto_fijo_mensual_id")
 
-  tarjeta     TarjetaCredito @relation(fields: [tarjetaId], references: [id], onDelete: Cascade)
-  transaccion Transaccion?   @relation(fields: [transaccionId], references: [id])
+  tarjeta          TarjetaCredito    @relation(fields: [tarjetaId], references: [id], onDelete: Cascade)
+  transaccion      Transaccion?      @relation(fields: [transaccionId], references: [id])
+  gastoFijoMensual GastoFijoMensual? @relation(fields: [gastoFijoMensualId], references: [id])
 
   @@map("movimientos_tarjeta")
 }

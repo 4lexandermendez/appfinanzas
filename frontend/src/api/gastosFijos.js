@@ -24,7 +24,9 @@ export async function listarGastosFijosMensual(anio, mes) {
   return data;
 }
 
-export async function guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado, montoReal }) {
-  const { data } = await client.put("/gastos-fijos/mensual", { gastoFijoConfigId, anio, mes, montoEstimado, montoReal });
+export async function guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId }) {
+  const { data } = await client.put("/gastos-fijos/mensual", {
+    gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId,
+  });
   return data.registro;
 }

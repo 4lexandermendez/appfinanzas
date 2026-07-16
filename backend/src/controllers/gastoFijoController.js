@@ -120,12 +120,22 @@ async function listarMensual(req, res) {
   res.json({ gastosFijos, sugerencias });
 }
 
+const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA"];
+
 // Se usa tanto para "seleccionar" un gasto fijo sugerido en el mes (mandando
 // montoEstimado) como para marcar el Real ya pagado. El montoEstimado, si
 // viene, también actualiza la config para que sea el monto sugerido la
 // próxima vez (ej. subiste de Netflix $15 a $18, el próximo mes sugiere $18).
+//
+// Si se paga con tarjeta (fuente=TARJETA + tarjetaId), se crea/ajusta un
+// MovimientoTarjeta vinculado y se suma el monto real al saldo de esa
+// tarjeta — igual que con Gasto Variable. Si el monto real cambia despues
+// (desde Registro Rápido o desde Presupuesto) y ya había un movimiento
+// vinculado, se ajusta el saldo por la diferencia en vez de duplicarlo; si
+// se pasa de tarjeta a efectivo, el movimiento se borra y se le devuelve el
+// monto a la tarjeta.
 async function guardarMensual(req, res) {
-  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal } = req.body;
+  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId } = req.body;
 
   if (!gastoFijoConfigId || !anio || !mes) {
     return res.status(400).json({ error: "gastoFijoConfigId, anio y mes son requeridos" });
@@ -145,29 +155,91 @@ async function guardarMensual(req, res) {
       return res.status(400).json({ error: "montoReal debe ser un número mayor o igual a 0" });
     }
   }
+  if (fuente !== undefined && !FUENTES_VALIDAS.includes(fuente)) {
+    return res.status(400).json({ error: "fuente debe ser EFECTIVO o TARJETA" });
+  }
+  if (fuente === "TARJETA" && !tarjetaId) {
+    return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
+  }
 
   const config = await prisma.gastoFijoConfig.findUnique({ where: { id: Number(gastoFijoConfigId) } });
   if (!config || config.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Gasto fijo no encontrado" });
   }
+  if (tarjetaId) {
+    const tarjeta = await prisma.tarjetaCredito.findUnique({ where: { id: Number(tarjetaId) } });
+    if (!tarjeta || tarjeta.usuarioId !== req.usuarioId) {
+      return res.status(404).json({ error: "Tarjeta no encontrada" });
+    }
+  }
 
   const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, Number(anio), Number(mes));
+
+  const existente = await prisma.gastoFijoMensual.findUnique({
+    where: { presupuestoId_gastoFijoConfigId: { presupuestoId: presupuesto.id, gastoFijoConfigId: config.id } },
+    include: { movimientoTarjeta: true },
+  });
 
   const data = {};
   if (estimadoNum !== null) data.montoEstimado = estimadoNum;
   if (realNum !== null) data.montoReal = realNum;
+  if (fuente !== undefined) data.fuente = fuente;
+  if (tarjetaId !== undefined) data.tarjetaId = tarjetaId ? Number(tarjetaId) : null;
 
-  const acciones = [
-    prisma.gastoFijoMensual.upsert({
+  const registro = await prisma.$transaction(async (tx) => {
+    const guardado = await tx.gastoFijoMensual.upsert({
       where: { presupuestoId_gastoFijoConfigId: { presupuestoId: presupuesto.id, gastoFijoConfigId: config.id } },
       update: data,
       create: { presupuestoId: presupuesto.id, gastoFijoConfigId: config.id, ...data },
-    }),
-  ];
-  if (estimadoNum !== null) {
-    acciones.push(prisma.gastoFijoConfig.update({ where: { id: config.id }, data: { montoEstimado: estimadoNum } }));
-  }
-  const [registro] = await prisma.$transaction(acciones);
+    });
+
+    if (estimadoNum !== null) {
+      await tx.gastoFijoConfig.update({ where: { id: config.id }, data: { montoEstimado: estimadoNum } });
+    }
+
+    const movimientoPrevio = existente?.movimientoTarjeta;
+    const montoFinal = guardado.montoReal ? Number(guardado.montoReal) : 0;
+
+    if (guardado.fuente === "TARJETA" && guardado.tarjetaId && montoFinal > 0) {
+      if (movimientoPrevio && movimientoPrevio.tarjetaId === guardado.tarjetaId) {
+        const delta = montoFinal - Number(movimientoPrevio.monto);
+        if (delta !== 0) {
+          await tx.movimientoTarjeta.update({ where: { id: movimientoPrevio.id }, data: { monto: montoFinal } });
+          await tx.tarjetaCredito.update({ where: { id: guardado.tarjetaId }, data: { saldoActual: { increment: delta } } });
+        }
+      } else if (movimientoPrevio) {
+        await tx.tarjetaCredito.update({
+          where: { id: movimientoPrevio.tarjetaId },
+          data: { saldoActual: { decrement: Number(movimientoPrevio.monto) } },
+        });
+        await tx.movimientoTarjeta.update({
+          where: { id: movimientoPrevio.id },
+          data: { monto: montoFinal, tarjetaId: guardado.tarjetaId },
+        });
+        await tx.tarjetaCredito.update({ where: { id: guardado.tarjetaId }, data: { saldoActual: { increment: montoFinal } } });
+      } else {
+        const hoy = new Date();
+        await tx.movimientoTarjeta.create({
+          data: {
+            tarjetaId: guardado.tarjetaId,
+            monto: montoFinal,
+            fecha: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())),
+            descripcion: config.nombre,
+            gastoFijoMensualId: guardado.id,
+          },
+        });
+        await tx.tarjetaCredito.update({ where: { id: guardado.tarjetaId }, data: { saldoActual: { increment: montoFinal } } });
+      }
+    } else if (movimientoPrevio) {
+      await tx.movimientoTarjeta.delete({ where: { id: movimientoPrevio.id } });
+      await tx.tarjetaCredito.update({
+        where: { id: movimientoPrevio.tarjetaId },
+        data: { saldoActual: { decrement: Number(movimientoPrevio.monto) } },
+      });
+    }
+
+    return guardado;
+  });
 
   res.json({ registro });
 }

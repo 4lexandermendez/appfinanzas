@@ -92,6 +92,7 @@ model GastoFijoMensual {
   montoReal         Decimal?          @map("monto_real") @db.Decimal(10, 2)
   fuente            FuenteTransaccion @default(EFECTIVO)
   tarjetaId         Int?              @map("tarjeta_id")
+  cuenta            CuentaBanco?
 
   presupuesto       PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
   gastoFijoConfig   GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
@@ -158,9 +159,23 @@ model CategoriaVariableMensual {
 // TRANSACCIONES (gastos variables individuales del mes)
 // ============================================================
 
+// EXTERNO = alguien mas te dio ese dinero (te lo transfirio o te lo dio en
+// efectivo) para cubrir el gasto, no salio de tu bolsillo. CUENTA_BANCO es
+// una transferencia directa desde una de tus cuentas (ver enum CuentaBanco),
+// distinto de pagar con la tarjeta de credito.
 enum FuenteTransaccion {
   EFECTIVO
   TARJETA
+  CUENTA_BANCO
+  EXTERNO
+}
+
+enum CuentaBanco {
+  CUSCATLAN
+  MULTIMONEY
+  BAC
+  AGRICOLA_PRINCIPAL
+  AGRICOLA_SECUNDARIA
 }
 
 model Transaccion {
@@ -172,6 +187,7 @@ model Transaccion {
   notas         String?           @db.Text
   fuente        FuenteTransaccion @default(EFECTIVO)
   tarjetaId     Int?              @map("tarjeta_id")
+  cuenta        CuentaBanco?
 
   presupuesto       PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
   categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)

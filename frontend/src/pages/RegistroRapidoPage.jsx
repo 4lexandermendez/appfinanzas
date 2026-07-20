@@ -9,6 +9,14 @@ import { listarTarjetas } from "../api/tarjetas";
 
 const NUEVA_CATEGORIA = "__nueva__";
 
+const CUENTAS_BANCO = [
+  { valor: "CUSCATLAN", etiqueta: "Cuenta de ahorro Cuscatlán" },
+  { valor: "MULTIMONEY", etiqueta: "Cuenta de ahorro Multimoney" },
+  { valor: "BAC", etiqueta: "Cuenta de ahorro BAC" },
+  { valor: "AGRICOLA_PRINCIPAL", etiqueta: "Cuenta de ahorro Agrícola (principal)" },
+  { valor: "AGRICOLA_SECUNDARIA", etiqueta: "Cuenta de ahorro Agrícola (secundaria)" },
+];
+
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
   { valor: "DESAYUNO", etiqueta: "Desayuno" },
@@ -71,6 +79,7 @@ export default function RegistroRapidoPage() {
   const [tarjetas, setTarjetas] = useState([]);
   const [fuentePago, setFuentePago] = useState("EFECTIVO");
   const [tarjetaId, setTarjetaId] = useState("");
+  const [cuenta, setCuenta] = useState("");
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [gastoFijoId, setGastoFijoId] = useState("");
@@ -78,6 +87,7 @@ export default function RegistroRapidoPage() {
   const [enviandoFijo, setEnviandoFijo] = useState(false);
   const [fuentePagoFijo, setFuentePagoFijo] = useState("EFECTIVO");
   const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
+  const [cuentaFijo, setCuentaFijo] = useState("");
 
   async function cargarTodo() {
     const { anio, mes } = anioMes(fechaSeleccionada);
@@ -163,6 +173,10 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige con qué tarjeta pagaste");
       return;
     }
+    if (fuentePago === "CUENTA_BANCO" && !cuenta) {
+      setMensaje("Elige de cuál cuenta pagaste");
+      return;
+    }
     setEnviandoForm(true);
     try {
       const idFinal = esNueva ? (await crearCategoria(nuevaCategoriaNombre.trim())).id : Number(categoriaId);
@@ -172,12 +186,14 @@ export default function RegistroRapidoPage() {
         fecha: fechaSeleccionada,
         fuente: fuentePago,
         tarjetaId: fuentePago === "TARJETA" ? Number(tarjetaId) : undefined,
+        cuenta: fuentePago === "CUENTA_BANCO" ? cuenta : undefined,
       });
       setMonto("");
       setCategoriaId("");
       setNuevaCategoriaNombre("");
       setFuentePago("EFECTIVO");
       setTarjetaId("");
+      setCuenta("");
       await cargarTodo();
       const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
@@ -200,6 +216,10 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige con qué tarjeta pagaste");
       return;
     }
+    if (fuentePagoFijo === "CUENTA_BANCO" && !cuentaFijo) {
+      setMensaje("Elige de cuál cuenta pagaste");
+      return;
+    }
     setEnviandoFijo(true);
     try {
       const { anio, mes } = anioMes(fechaSeleccionada);
@@ -210,11 +230,13 @@ export default function RegistroRapidoPage() {
         montoReal: Number(montoFijo),
         fuente: fuentePagoFijo,
         tarjetaId: fuentePagoFijo === "TARJETA" ? Number(tarjetaIdFijo) : undefined,
+        cuenta: fuentePagoFijo === "CUENTA_BANCO" ? cuentaFijo : undefined,
       });
       setGastoFijoId("");
       setMontoFijo("");
       setFuentePagoFijo("EFECTIVO");
       setTarjetaIdFijo("");
+      setCuentaFijo("");
       setMensaje("Gasto fijo marcado como pagado");
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
@@ -406,6 +428,8 @@ export default function RegistroRapidoPage() {
             >
               <option value="EFECTIVO">Efectivo</option>
               <option value="TARJETA">Tarjeta de crédito</option>
+              <option value="CUENTA_BANCO">Cuenta de banco</option>
+              <option value="EXTERNO">Externo (me dieron ese dinero)</option>
             </select>
             {fuentePago === "TARJETA" && (
               <select
@@ -417,6 +441,20 @@ export default function RegistroRapidoPage() {
                 {tarjetas.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+            {fuentePago === "CUENTA_BANCO" && (
+              <select
+                value={cuenta}
+                onChange={(e) => setCuenta(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              >
+                <option value="">-- Elegir cuenta --</option>
+                {CUENTAS_BANCO.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.etiqueta}
                   </option>
                 ))}
               </select>
@@ -480,6 +518,8 @@ export default function RegistroRapidoPage() {
             >
               <option value="EFECTIVO">Efectivo</option>
               <option value="TARJETA">Tarjeta de crédito</option>
+              <option value="CUENTA_BANCO">Cuenta de banco</option>
+              <option value="EXTERNO">Externo (me dieron ese dinero)</option>
             </select>
             {fuentePagoFijo === "TARJETA" && (
               <select
@@ -491,6 +531,20 @@ export default function RegistroRapidoPage() {
                 {tarjetas.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+            {fuentePagoFijo === "CUENTA_BANCO" && (
+              <select
+                value={cuentaFijo}
+                onChange={(e) => setCuentaFijo(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              >
+                <option value="">-- Elegir cuenta --</option>
+                {CUENTAS_BANCO.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.etiqueta}
                   </option>
                 ))}
               </select>

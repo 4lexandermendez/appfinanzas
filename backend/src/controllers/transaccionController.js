@@ -1,7 +1,8 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
 
-const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA"];
+const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA", "CUENTA_BANCO", "EXTERNO"];
+const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL", "AGRICOLA_SECUNDARIA"];
 
 function parseFecha(valor) {
   const fecha = new Date(valor);
@@ -46,7 +47,7 @@ async function listar(req, res) {
 }
 
 async function crear(req, res) {
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta } = req.body;
 
   if (!categoriaId || monto === undefined || !fecha) {
     return res.status(400).json({ error: "categoriaId, monto y fecha son requeridos" });
@@ -61,10 +62,13 @@ async function crear(req, res) {
   }
   const fuenteFinal = fuente ?? "EFECTIVO";
   if (!FUENTES_VALIDAS.includes(fuenteFinal)) {
-    return res.status(400).json({ error: "fuente debe ser EFECTIVO o TARJETA" });
+    return res.status(400).json({ error: `fuente debe ser una de: ${FUENTES_VALIDAS.join(", ")}` });
   }
   if (fuenteFinal === "TARJETA" && !tarjetaId) {
     return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
+  }
+  if (fuenteFinal === "CUENTA_BANCO" && !CUENTAS_VALIDAS.includes(cuenta)) {
+    return res.status(400).json({ error: `cuenta debe ser una de: ${CUENTAS_VALIDAS.join(", ")}` });
   }
 
   const categoria = await validarCategoria(req.usuarioId, Number(categoriaId));
@@ -93,6 +97,7 @@ async function crear(req, res) {
         notas: notas || null,
         fuente: fuenteFinal,
         tarjetaId: tarjetaId ? Number(tarjetaId) : null,
+        cuenta: fuenteFinal === "CUENTA_BANCO" ? cuenta : null,
       },
       include: { categoria: true },
     });
@@ -129,7 +134,7 @@ async function actualizar(req, res) {
     return res.status(404).json({ error: "Transacción no encontrada" });
   }
 
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta } = req.body;
   const data = {};
 
   if (categoriaId !== undefined) {
@@ -168,7 +173,7 @@ async function actualizar(req, res) {
 
   if (fuente !== undefined) {
     if (!FUENTES_VALIDAS.includes(fuente)) {
-      return res.status(400).json({ error: "fuente debe ser EFECTIVO o TARJETA" });
+      return res.status(400).json({ error: `fuente debe ser una de: ${FUENTES_VALIDAS.join(", ")}` });
     }
     data.fuente = fuente;
   }
@@ -178,6 +183,13 @@ async function actualizar(req, res) {
       return res.status(404).json({ error: "Tarjeta no encontrada" });
     }
     data.tarjetaId = tarjetaId ? Number(tarjetaId) : null;
+  }
+
+  if (cuenta !== undefined) {
+    if (cuenta !== null && !CUENTAS_VALIDAS.includes(cuenta)) {
+      return res.status(400).json({ error: `cuenta debe ser una de: ${CUENTAS_VALIDAS.join(", ")}` });
+    }
+    data.cuenta = cuenta || null;
   }
 
   // Si esta transaccion ya tenia un movimiento en una tarjeta vinculado y

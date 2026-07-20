@@ -120,7 +120,8 @@ async function listarMensual(req, res) {
   res.json({ gastosFijos, sugerencias });
 }
 
-const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA"];
+const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA", "CUENTA_BANCO", "EXTERNO"];
+const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL", "AGRICOLA_SECUNDARIA"];
 
 // Se usa tanto para "seleccionar" un gasto fijo sugerido en el mes (mandando
 // montoEstimado) como para marcar el Real ya pagado. El montoEstimado, si
@@ -135,7 +136,7 @@ const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA"];
 // se pasa de tarjeta a efectivo, el movimiento se borra y se le devuelve el
 // monto a la tarjeta.
 async function guardarMensual(req, res) {
-  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId } = req.body;
+  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta } = req.body;
 
   if (!gastoFijoConfigId || !anio || !mes) {
     return res.status(400).json({ error: "gastoFijoConfigId, anio y mes son requeridos" });
@@ -156,10 +157,13 @@ async function guardarMensual(req, res) {
     }
   }
   if (fuente !== undefined && !FUENTES_VALIDAS.includes(fuente)) {
-    return res.status(400).json({ error: "fuente debe ser EFECTIVO o TARJETA" });
+    return res.status(400).json({ error: `fuente debe ser una de: ${FUENTES_VALIDAS.join(", ")}` });
   }
   if (fuente === "TARJETA" && !tarjetaId) {
     return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
+  }
+  if (fuente === "CUENTA_BANCO" && !CUENTAS_VALIDAS.includes(cuenta)) {
+    return res.status(400).json({ error: `cuenta debe ser una de: ${CUENTAS_VALIDAS.join(", ")}` });
   }
 
   const config = await prisma.gastoFijoConfig.findUnique({ where: { id: Number(gastoFijoConfigId) } });
@@ -185,6 +189,7 @@ async function guardarMensual(req, res) {
   if (realNum !== null) data.montoReal = realNum;
   if (fuente !== undefined) data.fuente = fuente;
   if (tarjetaId !== undefined) data.tarjetaId = tarjetaId ? Number(tarjetaId) : null;
+  if (cuenta !== undefined) data.cuenta = cuenta || null;
 
   const registro = await prisma.$transaction(async (tx) => {
     const guardado = await tx.gastoFijoMensual.upsert({

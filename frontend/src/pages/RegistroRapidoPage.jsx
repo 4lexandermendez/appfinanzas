@@ -111,6 +111,14 @@ export default function RegistroRapidoPage() {
     [registrosMes]
   );
 
+  // Un gasto fijo ya pagado en su totalidad este mes (real >= estimado) deja
+  // de mostrarse en el selector — no hay nada más que pagar ahí. Si solo se
+  // pagó una parte (real < estimado), se sigue mostrando hasta completarlo.
+  const gastosFijosDisponibles = useMemo(
+    () => gastosFijos.filter((g) => !(g.montoReal !== null && Number(g.montoReal) >= Number(g.montoEstimado))),
+    [gastosFijos]
+  );
+
   function registrosDelConcepto(concepto) {
     return registrosMes
       .filter((r) => r.fecha.slice(0, 10) === fechaSeleccionada && r.concepto === concepto)
@@ -435,16 +443,19 @@ export default function RegistroRapidoPage() {
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             >
               <option value="">-- Elegir gasto fijo --</option>
-              {gastosFijos.map((g) => (
+              {gastosFijosDisponibles.map((g) => (
                 <option key={g.gastoFijoConfigId} value={g.gastoFijoConfigId}>
                   {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)})
                 </option>
               ))}
             </select>
-            {gastosFijos.length === 0 && (
+            {gastosFijosDisponibles.length === 0 && gastosFijos.length === 0 && (
               <p className="text-xs text-gray-400 mt-1">
                 No hay gastos fijos vigentes este mes. Agregalos en Presupuesto.
               </p>
+            )}
+            {gastosFijosDisponibles.length === 0 && gastosFijos.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">Ya pagaste todos los gastos fijos de este mes.</p>
             )}
           </div>
 

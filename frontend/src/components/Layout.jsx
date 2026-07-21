@@ -28,7 +28,7 @@ export default function Layout() {
                 Presupuesto
               </NavLink>
               <NavLink to="/tarjetas" className={linkClase}>
-                Tarjetas
+                Cuentas
               </NavLink>
               <NavLink to="/ajustes" className={linkClase}>
                 Ajustes

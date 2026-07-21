@@ -25,6 +25,7 @@ model Usuario {
   categoriasVariables  CategoriaVariable[]
   metasAhorro          MetaAhorro[]
   tarjetasCredito      TarjetaCredito[]
+  gruposCuenta         GrupoCuenta[]
   ajusteTracker        AjusteTracker[]
   diasLibres           DiaLibre[]
   botonesRapidosConfig BotonRapidoConfig[]
@@ -292,12 +293,68 @@ model DeudaMensual {
 }
 
 // ============================================================
+// GRUPOS DE CUENTA (por banco: agrupa cuentas bancarias y, si aplica,
+// la tarjeta de crédito de ese banco)
+// ============================================================
+
+model GrupoCuenta {
+  id        Int    @id @default(autoincrement())
+  usuarioId Int    @map("usuario_id")
+  nombre    String
+  orden     Int    @default(0)
+
+  usuario  Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cuentas  CuentaBancaria[]
+  tarjetas TarjetaCredito[]
+
+  @@map("grupos_cuenta")
+}
+
+model CuentaBancaria {
+  id          Int     @id @default(autoincrement())
+  grupoId     Int     @map("grupo_id")
+  nombre      String
+  saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+
+  grupo         GrupoCuenta        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  tarjetaDebito TarjetaDebito?
+  movimientos   MovimientoCuenta[]
+
+  @@map("cuentas_bancarias")
+}
+
+model TarjetaDebito {
+  id       Int    @id @default(autoincrement())
+  cuentaId Int    @unique @map("cuenta_id")
+  nombre   String
+
+  cuenta CuentaBancaria @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  @@map("tarjetas_debito")
+}
+
+// monto positivo = entrada (deposito / transferencia recibida)
+// monto negativo = salida (retiro / transferencia enviada)
+model MovimientoCuenta {
+  id          Int      @id @default(autoincrement())
+  cuentaId    Int      @map("cuenta_id")
+  monto       Decimal  @db.Decimal(10, 2)
+  fecha       DateTime @db.Date
+  descripcion String?
+
+  cuenta CuentaBancaria @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  @@map("movimientos_cuenta")
+}
+
+// ============================================================
 // TARJETAS DE CRÉDITO
 // ============================================================
 
 model TarjetaCredito {
   id                   Int     @id @default(autoincrement())
   usuarioId            Int     @map("usuario_id")
+  grupoId              Int?    @map("grupo_id")
   nombre               String
   limite               Decimal @db.Decimal(10, 2)
   diaCorte             Int     @map("dia_corte")
@@ -308,6 +365,7 @@ model TarjetaCredito {
   porcentajePagoMinimo Decimal @default(5) @map("porcentaje_pago_minimo") @db.Decimal(5, 2)
 
   usuario          Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  grupo            GrupoCuenta?        @relation(fields: [grupoId], references: [id])
   movimientos      MovimientoTarjeta[]
   transacciones    Transaccion[]
   gastosFijosMes   GastoFijoMensual[]

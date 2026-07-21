@@ -10,7 +10,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 // Recharts, que es la libreria mas pesada del proyecto.
 const RegistroRapidoPage = lazy(() => import("./pages/RegistroRapidoPage"));
 const PresupuestoPage = lazy(() => import("./pages/PresupuestoPage"));
-const TarjetasPage = lazy(() => import("./pages/TarjetasPage"));
+const CuentasPage = lazy(() => import("./pages/CuentasPage"));
 const ResumenAnualPage = lazy(() => import("./pages/ResumenAnualPage"));
 const AjustesPage = lazy(() => import("./pages/AjustesPage"));
 const MesPage = lazy(() => import("./pages/MesPage"));
@@ -30,7 +30,7 @@ function App() {
       >
         <Route index element={<RegistroRapidoPage />} />
         <Route path="presupuesto" element={<PresupuestoPage />} />
-        <Route path="tarjetas" element={<TarjetasPage />} />
+        <Route path="tarjetas" element={<CuentasPage />} />
         <Route path="anual" element={<ResumenAnualPage />} />
         <Route path="ajustes" element={<AjustesPage />} />
         <Route path="mes" element={<MesPage />} />

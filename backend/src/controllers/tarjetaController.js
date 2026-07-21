@@ -14,8 +14,17 @@ function validarDia(valor, campo) {
   return Number.isInteger(num) && num >= 1 && num <= 31 ? num : null;
 }
 
+async function validarGrupoId(grupoId, usuarioId) {
+  if (grupoId === undefined || grupoId === null) return { ok: true, valor: null };
+  const num = Number(grupoId);
+  if (!Number.isInteger(num)) return { ok: false };
+  const grupo = await prisma.grupoCuenta.findUnique({ where: { id: num } });
+  if (!grupo || grupo.usuarioId !== usuarioId) return { ok: false };
+  return { ok: true, valor: num };
+}
+
 async function crear(req, res) {
-  const { nombre, limite, diaCorte, diaPago, porcentajePagoMinimo } = req.body;
+  const { nombre, limite, diaCorte, diaPago, porcentajePagoMinimo, grupoId } = req.body;
 
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: "nombre es requerido" });
@@ -37,9 +46,13 @@ async function crear(req, res) {
     }
   }
 
+  const grupoValidado = await validarGrupoId(grupoId, req.usuarioId);
+  if (!grupoValidado.ok) return res.status(400).json({ error: "grupoId inválido" });
+
   const tarjeta = await prisma.tarjetaCredito.create({
     data: {
       usuarioId: req.usuarioId,
+      grupoId: grupoValidado.valor,
       nombre: nombre.trim(),
       limite: limiteNum,
       diaCorte: diaCorteNum,
@@ -57,9 +70,14 @@ async function actualizar(req, res) {
     return res.status(404).json({ error: "Tarjeta no encontrada" });
   }
 
-  const { nombre, limite, diaCorte, diaPago, porcentajePagoMinimo } = req.body;
+  const { nombre, limite, diaCorte, diaPago, porcentajePagoMinimo, grupoId } = req.body;
   const data = {};
 
+  if (grupoId !== undefined) {
+    const grupoValidado = await validarGrupoId(grupoId, req.usuarioId);
+    if (!grupoValidado.ok) return res.status(400).json({ error: "grupoId inválido" });
+    data.grupoId = grupoValidado.valor;
+  }
   if (nombre !== undefined) {
     if (!nombre.trim()) return res.status(400).json({ error: "nombre no puede estar vacío" });
     data.nombre = nombre.trim();

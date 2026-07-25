@@ -76,26 +76,28 @@ function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "E
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mt-3">
+    <form onSubmit={handleSubmit} className="mt-3 space-y-2">
       <input
         type="text"
         placeholder={placeholder}
         value={nombre}
         onChange={(e) => setNombre(e.target.value)}
-        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
       />
-      <input
-        type="number"
-        step="0.01"
-        min="0.01"
-        placeholder={placeholderMonto}
-        value={montoEstimado}
-        onChange={(e) => setMontoEstimado(e.target.value)}
-        className="w-28 border border-gray-300 rounded px-2 py-1 text-sm"
-      />
-      <button type="submit" className="bg-purple-600 text-white rounded px-3 py-1 text-sm hover:bg-purple-700">
-        Agregar
-      </button>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          step="0.01"
+          min="0.01"
+          placeholder={placeholderMonto}
+          value={montoEstimado}
+          onChange={(e) => setMontoEstimado(e.target.value)}
+          className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+        />
+        <button type="submit" className="bg-purple-600 text-white rounded px-3 py-1 text-sm hover:bg-purple-700">
+          Agregar
+        </button>
+      </div>
     </form>
   );
 }

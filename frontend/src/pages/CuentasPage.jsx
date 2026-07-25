@@ -231,14 +231,16 @@ function MovimientoForm({ onSubmit }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mt-2">
-      <input type="number" step="0.01" placeholder="Monto (+compra / -pago)" value={monto}
-        onChange={(e) => setMonto(e.target.value)}
-        className="w-40 border border-gray-300 rounded px-2 py-1 text-sm" />
-      <input type="text" placeholder="Descripción" value={descripcion}
-        onChange={(e) => setDescripcion(e.target.value)}
-        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm" />
-      <button type="submit" className="bg-purple-100 text-purple-800 rounded px-3 py-1 text-sm hover:bg-purple-200">
+    <form onSubmit={handleSubmit} className="mt-2 space-y-2">
+      <div className="flex gap-2">
+        <input type="number" step="0.01" placeholder="Monto (+compra / -pago)" value={monto}
+          onChange={(e) => setMonto(e.target.value)}
+          className="w-32 shrink-0 border border-gray-300 rounded px-2 py-1 text-sm" />
+        <input type="text" placeholder="Descripción" value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 text-sm" />
+      </div>
+      <button type="submit" className="w-full bg-purple-100 text-purple-800 rounded px-3 py-1 text-sm hover:bg-purple-200">
         Agregar
       </button>
     </form>
@@ -362,12 +364,12 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
           <div className="space-y-1">
             {movimientosVisibles.map((m) => (
               <div key={m.id} className="flex items-center gap-2 text-sm">
-                <span className="text-gray-400 w-24">{m.fecha.slice(0, 10)}</span>
-                <span className={`w-20 ${Number(m.monto) < 0 ? "text-green-600" : "text-gray-800"}`}>
+                <span className="text-gray-400 w-20 shrink-0">{m.fecha.slice(0, 10)}</span>
+                <span className={`w-16 shrink-0 ${Number(m.monto) < 0 ? "text-green-600" : "text-gray-800"}`}>
                   ${Math.abs(Number(m.monto)).toFixed(2)}
                 </span>
-                <span className="flex-1 text-gray-500">{m.descripcion}</span>
-                <button onClick={() => handleEliminarMovimiento(m.id)} className="text-red-500 hover:text-red-700" title="Eliminar movimiento">
+                <span className="flex-1 min-w-0 text-gray-500 break-words">{m.descripcion}</span>
+                <button onClick={() => handleEliminarMovimiento(m.id)} className="text-red-500 hover:text-red-700 shrink-0" title="Eliminar movimiento">
                   <IconTrash className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -554,12 +556,12 @@ function CuentaBancariaRow({
         <div className="mt-2 border-t border-gray-200 pt-2 space-y-1">
           {movimientos.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400 w-24">{m.fecha.slice(0, 10)}</span>
-              <span className={`w-20 ${Number(m.monto) < 0 ? "text-red-600" : "text-green-600"}`}>
+              <span className="text-gray-400 w-20 shrink-0">{m.fecha.slice(0, 10)}</span>
+              <span className={`w-16 shrink-0 ${Number(m.monto) < 0 ? "text-red-600" : "text-green-600"}`}>
                 ${Math.abs(Number(m.monto)).toFixed(2)}
               </span>
-              <span className="flex-1 text-gray-500">{m.descripcion}</span>
-              <button onClick={() => handleEliminarMovimiento(m.id)} className="text-red-500 hover:text-red-700" title="Eliminar movimiento">
+              <span className="flex-1 min-w-0 text-gray-500 break-words">{m.descripcion}</span>
+              <button onClick={() => handleEliminarMovimiento(m.id)} className="text-red-500 hover:text-red-700 shrink-0" title="Eliminar movimiento">
                 <IconTrash className="w-3.5 h-3.5" />
               </button>
             </div>

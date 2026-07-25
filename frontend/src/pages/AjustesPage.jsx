@@ -196,25 +196,27 @@ function SeccionBotonesRapidos() {
         Montos frecuentes por concepto, tipo cajero automático (hasta 3 por concepto).
       </p>
       {CONCEPTOS_TRACKER.map((c) => (
-        <div key={c.valor} className="flex items-center gap-2 text-sm">
-          <span className="w-32">{c.etiqueta}</span>
-          {["monto1", "monto2", "monto3"].map((campo) => (
-            <input
-              key={campo}
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder={campo === "monto1" ? "Requerido" : "Opcional"}
-              value={form[c.valor]?.[campo] ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, [c.valor]: { ...form[c.valor], [campo]: e.target.value } })
-              }
-              className="w-24 border border-gray-300 rounded px-2 py-1"
-            />
-          ))}
+        <div key={c.valor} className="text-sm space-y-2 pb-2 border-b border-gray-100 last:border-0">
+          <span className="block font-medium text-gray-700">{c.etiqueta}</span>
+          <div className="flex gap-2">
+            {["monto1", "monto2", "monto3"].map((campo) => (
+              <input
+                key={campo}
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={campo === "monto1" ? "Requerido" : "Opcional"}
+                value={form[c.valor]?.[campo] ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, [c.valor]: { ...form[c.valor], [campo]: e.target.value } })
+                }
+                className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1"
+              />
+            ))}
+          </div>
           <button
             onClick={() => handleGuardar(c.valor)}
-            className="bg-purple-100 text-purple-800 rounded px-2 py-1 hover:bg-purple-200"
+            className="w-full bg-purple-100 text-purple-800 rounded px-2 py-1 hover:bg-purple-200"
           >
             Guardar
           </button>

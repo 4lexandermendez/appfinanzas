@@ -301,12 +301,12 @@ export default function RegistroRapidoPage() {
               <Fragment key={c.valor}>
                 <div className="border-t border-gray-50 pt-3">
                   <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                     <button
                       type="button"
                       disabled={registrando === `${c.valor}-0`}
                       onClick={() => handleBoton(c.valor, 0)}
-                      className="px-3 py-2 rounded bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+                      className="shrink-0 px-3 py-2 rounded bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
                     >
                       $0.00
                     </button>
@@ -316,12 +316,12 @@ export default function RegistroRapidoPage() {
                         type="button"
                         disabled={registrando === `${c.valor}-${m}`}
                         onClick={() => handleBoton(c.valor, Number(m))}
-                        className="px-3 py-2 rounded bg-purple-100 text-purple-800 text-sm font-medium hover:bg-purple-200 disabled:opacity-50"
+                        className="shrink-0 px-3 py-2 rounded bg-purple-100 text-purple-800 text-sm font-medium hover:bg-purple-200 disabled:opacity-50"
                       >
                         ${Number(m).toFixed(2)}
                       </button>
                     ))}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <input
                         type="number"
                         step="0.01"
@@ -329,12 +329,12 @@ export default function RegistroRapidoPage() {
                         placeholder="Otro"
                         value={montosLibres[c.valor] ?? ""}
                         onChange={(e) => setMontosLibres((prev) => ({ ...prev, [c.valor]: e.target.value }))}
-                        className="w-16 border border-gray-300 rounded px-2 py-2 text-sm"
+                        className="w-16 shrink-0 border border-gray-300 rounded px-2 py-2 text-sm"
                       />
                       <button
                         type="button"
                         onClick={() => handleMontoLibre(c.valor)}
-                        className="px-2 py-2 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+                        className="shrink-0 px-2 py-2 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
                       >
                         OK
                       </button>

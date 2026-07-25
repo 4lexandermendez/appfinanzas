@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell,
-} from "recharts";
+import DonutConTotal from "../components/DonutConTotal";
+import GraficaEstimadoReal from "../components/GraficaEstimadoReal";
 import { obtenerResumenMes } from "../api/dashboard";
 import { listarIngresos } from "../api/ingresos";
 import { listarAhorros } from "../api/ahorros";
@@ -103,7 +101,6 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
   );
 }
 
-const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#be185d" };
 
 function fmt(v) {
   return `$${Number(v).toFixed(2)}`;
@@ -486,17 +483,13 @@ export default function MesPage() {
 
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Presupuesto vs Real</h2>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={dataBarras}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v) => fmt(v)} />
-            <Legend />
-            <Bar dataKey="Presupuesto" fill="#c4b5fd" />
-            <Bar dataKey="Real" fill="#a855f7" />
-          </BarChart>
-        </ResponsiveContainer>
+        <GraficaEstimadoReal
+          data={dataBarras}
+          xKey="nombre"
+          claveEstimado="Presupuesto"
+          formato={fmt}
+          altura={260}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -505,17 +498,10 @@ export default function MesPage() {
           {dataDonaPresupuesto.length === 0 ? (
             <p className="text-sm text-gray-400 text-center">Sin presupuesto este mes</p>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={dataDonaPresupuesto} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
-                  {dataDonaPresupuesto.map((d) => (
-                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => fmt(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <DonutConTotal
+              data={dataDonaPresupuesto}
+              total={dataDonaPresupuesto.reduce((s, d) => s + d.value, 0)}
+            />
           )}
         </div>
         <div className="bg-white rounded-lg shadow p-4">
@@ -523,17 +509,10 @@ export default function MesPage() {
           {dataDonaReal.length === 0 ? (
             <p className="text-sm text-gray-400 text-center">Sin gastos registrados este mes</p>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={dataDonaReal} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80}>
-                  {dataDonaReal.map((d) => (
-                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => fmt(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <DonutConTotal
+              data={dataDonaReal}
+              total={dataDonaReal.reduce((s, d) => s + d.value, 0)}
+            />
           )}
         </div>
       </div>

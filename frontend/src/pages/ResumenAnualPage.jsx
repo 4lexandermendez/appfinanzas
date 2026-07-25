@@ -1,29 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  AreaChart,
+  Area,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
 } from "recharts";
 import { obtenerResumenAnual, obtenerResumenAnualCompleto } from "../api/dashboard";
 import { anioActual } from "../utils/fecha";
+import DonutConTotal from "../components/DonutConTotal";
+import GraficaEstimadoReal from "../components/GraficaEstimadoReal";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#be185d" };
 
 function TablaSeccion({ titulo, colorCabecera, seccion }) {
   const dataGrafica = seccion.meses.map((m) => ({
@@ -60,19 +51,48 @@ function TablaSeccion({ titulo, colorCabecera, seccion }) {
           </tbody>
         </table>
         <div className="p-2">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={dataGrafica}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-              <Legend />
-              <Bar dataKey="Estimado" fill="#c4b5fd" />
-              <Bar dataKey="Real" fill="#a855f7" />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficaEstimadoReal data={dataGrafica} xKey="mes" altura={240} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// Tarjeta tipo "stat card": numero grande + variacion % + mini-grafica de
+// area suave debajo, sin ejes ni grilla — para destacar una sola serie en
+// vez de comparar dos lineas en una grafica tradicional.
+function TarjetaSparkline({ titulo, datos, color, rangoTexto }) {
+  const gradientId = useId();
+  const valores = datos.map((d) => d.valor);
+  const primero = valores.find((v) => v > 0) ?? 0;
+  const ultimo = [...valores].reverse().find((v) => v > 0) ?? 0;
+  const cambio = primero > 0 ? Math.round(((ultimo - primero) / primero) * 100) : 0;
+  const total = valores.reduce((s, v) => s + v, 0);
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-4">
+      <div className="flex items-start justify-between">
+        <span className="text-sm text-gray-500">{titulo}</span>
+        {cambio !== 0 && (
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cambio >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
+            {cambio >= 0 ? "+" : ""}{cambio}%
+          </span>
+        )}
+      </div>
+      <p className="text-2xl font-bold text-gray-900 mt-1">${total.toFixed(2)}</p>
+      <p className="text-xs text-gray-400 mb-1">{rangoTexto}</p>
+      <ResponsiveContainer width="100%" height={80}>
+        <AreaChart data={datos} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} labelFormatter={(l) => l} />
+          <Area type="monotone" dataKey="valor" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -201,49 +221,37 @@ export default function ResumenAnualPage() {
           {dataDistribucion.length === 0 ? (
             <p className="text-sm text-gray-400 text-center">Sin gastos registrados este año</p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={dataDistribucion} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                  {dataDistribucion.map((d) => (
-                    <Cell key={d.name} fill={COLORES_DISTRIBUCION[d.name] || "#a855f7"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <DonutConTotal
+              data={dataDistribucion}
+              total={dataDistribucion.reduce((s, d) => s + d.value, 0)}
+              altura={280}
+            />
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Ingresos vs Gastos ({anio})</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={dataLinea}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-              <Legend />
-              <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={2} />
-              <Line type="monotone" dataKey="Gastos" stroke="#ef4444" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="space-y-4">
+          <TarjetaSparkline
+            titulo={`Ingresos (${anio})`}
+            datos={dataLinea.map((d) => ({ mes: d.mes, valor: d.Ingresos }))}
+            color="#22c55e"
+            rangoTexto={`${dataLinea[0]?.mes} - ${dataLinea[dataLinea.length - 1]?.mes}`}
+          />
+          <TarjetaSparkline
+            titulo={`Gastos (${anio})`}
+            datos={dataLinea.map((d) => ({ mes: d.mes, valor: d.Gastos }))}
+            color="#ef4444"
+            rangoTexto={`${dataLinea[0]?.mes} - ${dataLinea[dataLinea.length - 1]?.mes}`}
+          />
         </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-2 text-center">Estimado vs Real</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={presupuestoAnual.map((c) => ({ nombre: c.nombre, Estimado: c.estimado, Real: c.real }))}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v) => `$${v.toFixed(2)}`} />
-            <Legend />
-            <Bar dataKey="Estimado" fill="#c4b5fd" />
-            <Bar dataKey="Real" fill="#a855f7" />
-          </BarChart>
-        </ResponsiveContainer>
+        <GraficaEstimadoReal
+          data={presupuestoAnual.map((c) => ({ nombre: c.nombre, Estimado: c.estimado, Real: c.real }))}
+          xKey="nombre"
+          altura={280}
+        />
       </div>
     </div>
   );

@@ -247,6 +247,43 @@ function MovimientoForm({ onSubmit }) {
   );
 }
 
+const GRADIENTES_TARJETA = [
+  "from-purple-600 to-indigo-700",
+  "from-teal-500 to-cyan-600",
+  "from-fuchsia-600 to-pink-700",
+  "from-blue-600 to-indigo-800",
+];
+
+function gradientePara(id) {
+  return GRADIENTES_TARJETA[Number(id) % GRADIENTES_TARJETA.length];
+}
+
+// Visual tipo "wallet" (gradiente, esquinas redondeadas, chip decorativo) que
+// encabeza tanto las tarjetas de credito como las de debito — estas ultimas
+// no llevan monto porque el saldo real vive en la cuenta, no en la tarjeta.
+function TarjetaVisual({ id, nombre, etiqueta, monto, detalle, onEliminar, eliminarTitulo }) {
+  return (
+    <div className={`relative overflow-hidden bg-gradient-to-br ${gradientePara(id)} p-5 text-white`}>
+      <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" />
+      <div className="absolute right-10 -bottom-10 w-24 h-24 rounded-full bg-white/10" />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-white/70 font-medium truncate">{nombre}</p>
+          {etiqueta && <p className="text-[10px] text-white/50 uppercase tracking-wide mt-0.5">{etiqueta}</p>}
+          {monto !== undefined && <p className="text-2xl font-bold mt-2">{monto}</p>}
+          {detalle && <p className="text-[11px] text-white/60 mt-0.5">{detalle}</p>}
+        </div>
+        <div className="flex flex-col items-end gap-3 shrink-0">
+          <div className="w-9 h-7 rounded-md bg-white/25" />
+          <button onClick={onEliminar} className="text-white/70 hover:text-white" title={eliminarTitulo}>
+            <IconTrash className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   const [expandida, setExpandida] = useState(false);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
@@ -301,66 +338,63 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
       : movimientos.filter((m) => m.fecha.slice(0, 10) > info.ciclo.corteVencido);
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="font-semibold text-gray-900">{tarjeta.nombre}</h3>
-          <p className="text-sm text-gray-500">
-            Saldo ${Number(tarjeta.saldoActual).toFixed(2)} de ${Number(tarjeta.limite).toFixed(2)} (disponible $
-            {info.disponible.toFixed(2)})
-          </p>
+    <div className="bg-white rounded-2xl shadow overflow-hidden">
+      <TarjetaVisual
+        id={tarjeta.id}
+        nombre={tarjeta.nombre}
+        etiqueta="Tarjeta de crédito"
+        monto={`$${Number(tarjeta.saldoActual).toFixed(2)}`}
+        detalle={`de $${Number(tarjeta.limite).toFixed(2)} · disponible $${info.disponible.toFixed(2)}`}
+        onEliminar={() => onEliminar(tarjeta.id)}
+        eliminarTitulo="Eliminar tarjeta"
+      />
+
+      <div className="p-6">
+        {hayDeuda && (
+          <button
+            onClick={handlePagar}
+            disabled={pagando}
+            className="mb-3 text-green-700 text-sm font-medium hover:underline disabled:opacity-50"
+          >
+            {pagando ? "Pagando..." : "Pagar saldo total"}
+          </button>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className={`rounded px-3 py-2 ${corteUrgente ? "bg-yellow-50 text-yellow-800" : "bg-gray-50 text-gray-600"}`}>
+            Corta en {info.diasParaCorte} día{info.diasParaCorte === 1 ? "" : "s"}
+          </div>
+          <div className={`rounded px-3 py-2 ${pagoUrgente ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-600"}`}>
+            Pagar en {info.diasParaPago} día{info.diasParaPago === 1 ? "" : "s"}
+          </div>
+          <div className="rounded px-3 py-2 bg-gray-50 text-gray-600">
+            Pago mínimo: ${info.pagoMinimo.toFixed(2)}
+          </div>
+          <div className="rounded px-3 py-2 bg-gray-50 text-gray-600">
+            Pago total (de contado): ${info.pagoTotal.toFixed(2)}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {hayDeuda && (
-            <button
-              onClick={handlePagar}
-              disabled={pagando}
-              className="text-green-700 text-sm hover:underline disabled:opacity-50"
-            >
-              {pagando ? "Pagando..." : "Pagar saldo total"}
-            </button>
-          )}
-          <button onClick={() => onEliminar(tarjeta.id)} className="text-red-500 hover:text-red-700" title="Eliminar tarjeta">
-            <IconTrash />
+
+        <div className="flex gap-4 mt-3">
+          <button
+            onClick={() => setExpandida((v) => !v)}
+            className="text-purple-600 text-sm hover:underline flex items-center gap-1"
+          >
+            <IconEye />
+            {expandida ? "Ocultar movimientos" : "Ver movimientos"}
+          </button>
+          <button
+            onClick={() => setMostrarCalendario((v) => !v)}
+            className="text-purple-600 text-sm hover:underline"
+          >
+            {mostrarCalendario ? "Ocultar calendario" : "Ver calendario del ciclo"}
           </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-        <div className={`rounded px-3 py-2 ${corteUrgente ? "bg-yellow-50 text-yellow-800" : "bg-gray-50 text-gray-600"}`}>
-          Corta en {info.diasParaCorte} día{info.diasParaCorte === 1 ? "" : "s"}
-        </div>
-        <div className={`rounded px-3 py-2 ${pagoUrgente ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-600"}`}>
-          Pagar en {info.diasParaPago} día{info.diasParaPago === 1 ? "" : "s"}
-        </div>
-        <div className="rounded px-3 py-2 bg-gray-50 text-gray-600">
-          Pago mínimo: ${info.pagoMinimo.toFixed(2)}
-        </div>
-        <div className="rounded px-3 py-2 bg-gray-50 text-gray-600">
-          Pago total (de contado): ${info.pagoTotal.toFixed(2)}
-        </div>
-      </div>
+        {mostrarCalendario && <CalendarioCiclo ciclo={info.ciclo} movimientos={movimientos} hayDeuda={hayDeuda} />}
 
-      <div className="flex gap-4 mt-3">
-        <button
-          onClick={() => setExpandida((v) => !v)}
-          className="text-purple-600 text-sm hover:underline flex items-center gap-1"
-        >
-          <IconEye />
-          {expandida ? "Ocultar movimientos" : "Ver movimientos"}
-        </button>
-        <button
-          onClick={() => setMostrarCalendario((v) => !v)}
-          className="text-purple-600 text-sm hover:underline"
-        >
-          {mostrarCalendario ? "Ocultar calendario" : "Ver calendario del ciclo"}
-        </button>
-      </div>
-
-      {mostrarCalendario && <CalendarioCiclo ciclo={info.ciclo} movimientos={movimientos} hayDeuda={hayDeuda} />}
-
-      {expandida && (
-        <div className="mt-3 border-t border-gray-100 pt-3">
+        {expandida && (
+          <div className="mt-3 border-t border-gray-100 pt-3">
           <div className="space-y-1">
             {movimientosVisibles.map((m) => (
               <div key={m.id} className="flex items-center gap-2 text-sm">
@@ -386,7 +420,8 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
           )}
           <MovimientoForm onSubmit={handleNuevoMovimiento} />
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -580,16 +615,14 @@ function CuentaBancariaRow({
 // crédito mostraba corte/pago, aquí solo hay un nombre y un "eliminar".
 function TarjetaDebitoCard({ cuenta, onEliminar }) {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="font-semibold text-gray-900">{cuenta.tarjetaDebito.nombre}</h3>
-          <p className="text-sm text-gray-500">Débito · vinculada a {cuenta.nombre}</p>
-        </div>
-        <button onClick={() => onEliminar(cuenta.id)} className="text-red-500 hover:text-red-700" title="Eliminar tarjeta">
-          <IconTrash />
-        </button>
-      </div>
+    <div className="rounded-2xl shadow overflow-hidden">
+      <TarjetaVisual
+        id={cuenta.tarjetaDebito.id}
+        nombre={cuenta.tarjetaDebito.nombre}
+        etiqueta={`Débito · ${cuenta.nombre}`}
+        onEliminar={() => onEliminar(cuenta.id)}
+        eliminarTitulo="Eliminar tarjeta"
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { listarCategorias, crearCategoria } from "../api/categorias";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
 import { listarTarjetas } from "../api/tarjetas";
+import { hoyISO } from "../utils/fecha";
 
 const NUEVA_CATEGORIA = "__nueva__";
 
@@ -25,10 +26,6 @@ const CONCEPTOS = [
 ];
 
 const NOMBRES_DIA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
-function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function diaDelMes(fechaISO) {
   return new Date(`${fechaISO}T00:00:00Z`).getUTCDate();

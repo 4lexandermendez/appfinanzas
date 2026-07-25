@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { parseFechaSoloDia } = require("../utils/fecha");
+const { parseFechaSoloDia, hoyElSalvador } = require("../utils/fecha");
 
 const CAMPOS_MONTO = [
   "montoPasajeIda",
@@ -61,8 +61,7 @@ async function guardar(req, res) {
     orderBy: { creadoEn: "desc" },
   });
 
-  const ahora = new Date();
-  const inicioHoy = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
+  const inicioHoy = hoyElSalvador();
 
   let ajuste;
   if (ultima && new Date(ultima.creadoEn) >= inicioHoy) {

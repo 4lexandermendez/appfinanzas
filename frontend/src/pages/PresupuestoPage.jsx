@@ -14,13 +14,9 @@ import {
 } from "../api/deudas";
 import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
 import { crearCategoria } from "../api/categorias";
+import { hoyAnioMes } from "../utils/fecha";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-function hoy() {
-  const d = new Date();
-  return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
-}
 
 // Espejo de estaVigenteEnMes del backend: un gasto fijo solo cuenta para un
 // mes si ya existía para entonces y, si fue deshabilitado, si eso pasó
@@ -105,7 +101,7 @@ function NuevoItemForm({ onSubmit, placeholder = "Nombre", placeholderMonto = "E
 }
 
 export default function PresupuestoPage() {
-  const [{ anio, mes }, setPeriodo] = useState(hoy());
+  const [{ anio, mes }, setPeriodo] = useState(hoyAnioMes());
   const [ingresos, setIngresos] = useState([]);
   const [ahorros, setAhorros] = useState([]);
   const [gastosFijos, setGastosFijos] = useState([]);

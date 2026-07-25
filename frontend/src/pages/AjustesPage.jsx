@@ -3,6 +3,7 @@ import { obtenerAjustesTracker, guardarAjustesTracker } from "../api/ajustesTrac
 import { listarBotonesRapidos, guardarBotonRapido } from "../api/botonesRapidos";
 import { listarDiasLibres, crearDiaLibre, eliminarDiaLibre } from "../api/diasLibres";
 import { listarAlertas, listarAlertasConfig, guardarAlertaConfig } from "../api/alertas";
+import { hoyISO, hoyAnioMes } from "../utils/fecha";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -223,10 +224,6 @@ function SeccionBotonesRapidos() {
   );
 }
 
-function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function SeccionDiasLibres() {
   const [dias, setDias] = useState([]);
   const [fecha, setFecha] = useState(hoyISO());
@@ -234,8 +231,8 @@ function SeccionDiasLibres() {
   const [cargando, setCargando] = useState(true);
 
   async function cargar() {
-    const ahora = new Date();
-    setDias(await listarDiasLibres(ahora.getFullYear(), ahora.getMonth() + 1));
+    const { anio, mes } = hoyAnioMes();
+    setDias(await listarDiasLibres(anio, mes));
     setCargando(false);
   }
 
@@ -291,11 +288,6 @@ function SeccionDiasLibres() {
       </div>
     </div>
   );
-}
-
-function hoyAnioMes() {
-  const d = new Date();
-  return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
 }
 
 function SeccionAlertas() {

@@ -12,10 +12,7 @@ import {
   listarMovimientosCuenta, crearMovimientoCuenta, eliminarMovimientoCuenta,
   transferirEntreCuentas,
 } from "../api/cuentasBancarias";
-
-function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { hoyISO } from "../utils/fecha";
 
 function IconTrash({ className = "w-4 h-4" }) {
   return (

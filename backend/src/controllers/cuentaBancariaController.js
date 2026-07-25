@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { hoyElSalvador } = require("../utils/fecha");
 
 async function obtenerCuentaPropia(cuentaId, usuarioId) {
   const cuenta = await prisma.cuentaBancaria.findUnique({
@@ -120,8 +121,7 @@ async function transferir(req, res) {
     return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
   }
 
-  const hoy = new Date();
-  const fechaHoy = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+  const fechaHoy = hoyElSalvador();
   const notaExtra = descripcion ? ` (${descripcion})` : "";
 
   const [movimientoOrigen, movimientoDestino] = await prisma.$transaction([

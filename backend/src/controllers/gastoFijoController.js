@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
+const { hoyElSalvador } = require("../utils/fecha");
 
 async function listarConfig(req, res) {
   const config = await prisma.gastoFijoConfig.findMany({
@@ -26,8 +27,8 @@ async function crearConfig(req, res) {
   // Un gasto fijo recién creado se da por seleccionado para el mes en curso
   // (el usuario lo está agregando ahora mismo). Los meses futuros se
   // ofrecen como sugerencia, uno por uno, cuando llegan.
-  const hoy = new Date();
-  const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, hoy.getFullYear(), hoy.getMonth() + 1);
+  const hoy = hoyElSalvador();
+  const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, hoy.getUTCFullYear(), hoy.getUTCMonth() + 1);
   await prisma.gastoFijoMensual.create({
     data: { presupuestoId: presupuesto.id, gastoFijoConfigId: gastoFijo.id, montoEstimado: montoNum },
   });
@@ -223,12 +224,11 @@ async function guardarMensual(req, res) {
         });
         await tx.tarjetaCredito.update({ where: { id: guardado.tarjetaId }, data: { saldoActual: { increment: montoFinal } } });
       } else {
-        const hoy = new Date();
         await tx.movimientoTarjeta.create({
           data: {
             tarjetaId: guardado.tarjetaId,
             monto: montoFinal,
-            fecha: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())),
+            fecha: hoyElSalvador(),
             descripcion: config.nombre,
             gastoFijoMensualId: guardado.id,
           },

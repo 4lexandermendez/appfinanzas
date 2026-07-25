@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const { calcularResumenMes } = require("./resumenMensualService");
 const { calcularInfoTarjeta } = require("./tarjetaService");
 const { listarConfig } = require("./alertaConfigService");
+const { hoyElSalvador } = require("../utils/fecha");
 
 function configPorTipo(configs) {
   const mapa = new Map();
@@ -99,11 +100,11 @@ async function calcularAlertas(usuarioId, anio, mes) {
       resumen.gastosFijos.estimado + resumen.gastosVariables.estimadoConocido + resumen.deudas.estimado;
     const disponible = presupuestoConocido - gastoReal;
 
-    const ahora = new Date();
+    const ahora = hoyElSalvador();
     let mensaje = `Este mes llevás gastado $${gastoReal.toFixed(2)} de $${presupuestoConocido.toFixed(2)}`;
-    if (ahora.getFullYear() === anio && ahora.getMonth() + 1 === mes) {
+    if (ahora.getUTCFullYear() === anio && ahora.getUTCMonth() + 1 === mes) {
       const ultimoDia = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
-      const diasRestantes = ultimoDia - ahora.getDate();
+      const diasRestantes = ultimoDia - ahora.getUTCDate();
       mensaje += `. Te quedan ${diasRestantes} día${diasRestantes === 1 ? "" : "s"} y $${disponible.toFixed(2)} disponibles`;
     }
 

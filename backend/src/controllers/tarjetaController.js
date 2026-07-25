@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { calcularInfoTarjeta } = require("../services/tarjetaService");
+const { hoyElSalvador } = require("../utils/fecha");
 
 async function listar(req, res) {
   const tarjetas = await prisma.tarjetaCredito.findMany({
@@ -137,8 +138,7 @@ async function pagar(req, res) {
     return res.status(400).json({ error: "Esta tarjeta no tiene saldo pendiente" });
   }
 
-  const hoy = new Date();
-  const fechaHoy = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+  const fechaHoy = hoyElSalvador();
 
   const [, tarjeta] = await prisma.$transaction([
     prisma.movimientoTarjeta.create({

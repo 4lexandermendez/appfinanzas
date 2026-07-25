@@ -12,6 +12,7 @@ import { listarTransacciones, actualizarTransaccion } from "../api/transacciones
 import { obtenerNotas, guardarNotas } from "../api/presupuestoMensual";
 import { obtenerDetalleQuincenal, listarTracker } from "../api/tracker";
 import { listarDiasLibres } from "../api/diasLibres";
+import { hoyISO, hoyAnioMes } from "../utils/fecha";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -49,7 +50,7 @@ function construirSemanas(anio, mes) {
 
 function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
   const semanas = construirSemanas(anio, mes);
-  const hoyISO = new Date().toISOString().slice(0, 10);
+  const hoyStr = hoyISO();
 
   const totalPorDia = new Map();
   for (const r of registrosTracker) {
@@ -80,7 +81,7 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
               {semana.map((dia, col) => {
                 if (dia === null) return <td key={col} className="px-2 py-2" />;
                 const fechaISO = `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-                const esHoy = fechaISO === hoyISO;
+                const esHoy = fechaISO === hoyStr;
                 const motivo = librePorDia.get(dia);
                 const total = totalPorDia.get(dia);
                 return (
@@ -103,11 +104,6 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
 }
 
 const COLORES_DISTRIBUCION = { Ahorros: "#3b82f6", "Gastos fijos": "#ec4899", "Gastos variables": "#eab308", Deudas: "#be185d" };
-
-function hoy() {
-  const d = new Date();
-  return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
-}
 
 function fmt(v) {
   return `$${Number(v).toFixed(2)}`;
@@ -170,7 +166,7 @@ function TablaDetalle({ titulo, colorCabecera, filas, columnas, campoTotal = "mo
 }
 
 export default function MesPage() {
-  const [{ anio, mes }, setPeriodo] = useState(hoy());
+  const [{ anio, mes }, setPeriodo] = useState(hoyAnioMes());
   const [resumen, setResumen] = useState(null);
   const [ingresos, setIngresos] = useState([]);
   const [ahorros, setAhorros] = useState([]);

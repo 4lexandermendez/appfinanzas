@@ -3,11 +3,11 @@ const { redondear } = require("../utils/dinero");
 const { calcularResumenMes } = require("../services/resumenMensualService");
 const { calcularResumenAnual } = require("../services/resumenAnualService");
 const { calcularResumenAnualCompleto } = require("../services/resumenAnualCompletoService");
-const { parseFechaSoloDia } = require("../utils/fecha");
+const { parseFechaSoloDia, hoyElSalvador } = require("../utils/fecha");
 
 async function hoy(req, res) {
   const fecha = req.query.fecha ? parseFechaSoloDia(req.query.fecha) : null;
-  const base = fecha || new Date();
+  const base = fecha || hoyElSalvador();
   const inicioDia = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
   const finDia = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + 1));
 

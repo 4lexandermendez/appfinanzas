@@ -1,3 +1,5 @@
+const { hoyElSalvador } = require("../utils/fecha");
+
 // Calcula la próxima fecha (a partir de "desde", inclusive) en la que cae
 // un día fijo del mes (ej. día de corte = 31). Si el mes no tiene ese día,
 // usa el último día del mes (ej. 31 en febrero -> 28).
@@ -20,11 +22,6 @@ function proximaFechaDelMes(diaDelMes, desde) {
 
 function diasEntre(fechaObjetivo, desde) {
   return Math.round((fechaObjetivo - desde) / (1000 * 60 * 60 * 24));
-}
-
-function hoySinHora() {
-  const ahora = new Date();
-  return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()));
 }
 
 function formatDateKey(fecha) {
@@ -60,7 +57,7 @@ function fechaEnMesConDia(diaDelMes, anio, mes) {
 // Se separan los dos porque apenas pasa un corte se abre un nuevo periodo
 // de gasto para la siguiente factura, mientras todavia esta pendiente de
 // pago la que acaba de cerrar.
-function calcularCicloTarjeta(tarjeta, referencia = hoySinHora()) {
+function calcularCicloTarjeta(tarjeta, referencia = hoyElSalvador()) {
   const corteEsteMes = fechaEnMesConDia(tarjeta.diaCorte, referencia.getUTCFullYear(), referencia.getUTCMonth());
   const corteVencido = corteEsteMes <= referencia ? corteEsteMes : corteAnteriorA(tarjeta.diaCorte, corteEsteMes);
   const corteAntesDelVencido = corteAnteriorA(tarjeta.diaCorte, corteVencido);
@@ -85,7 +82,7 @@ function calcularCicloTarjeta(tarjeta, referencia = hoySinHora()) {
 }
 
 function calcularInfoTarjeta(tarjeta) {
-  const hoy = hoySinHora();
+  const hoy = hoyElSalvador();
   const proximoCorte = proximaFechaDelMes(tarjeta.diaCorte, hoy);
   const proximoPago = proximaFechaDelMes(tarjeta.diaPago, hoy);
 

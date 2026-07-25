@@ -287,11 +287,12 @@ export default function RegistroRapidoPage() {
       )}
 
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-2 gap-x-4 mb-3">
+        <div className="hidden sm:grid sm:grid-cols-2 gap-x-4 mb-3">
           <h2 className="text-sm font-semibold text-gray-700">Botones rápidos</h2>
           <h2 className="text-sm font-semibold text-gray-700">Hoy registraste</h2>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <h2 className="sm:hidden text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
           {CONCEPTOS.map((c) => {
             const config = botones.find((b) => b.concepto === c.valor);
             const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
@@ -341,8 +342,8 @@ export default function RegistroRapidoPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-gray-50 pt-3">
-                  <p className="text-xs text-gray-500 mb-1 invisible">{c.etiqueta}</p>
+                <div className="pt-1 sm:border-t sm:border-gray-50 sm:pt-3">
+                  <p className="text-xs text-gray-500 mb-1 sm:invisible">Hoy registraste</p>
                   {registrosConcepto.length === 0 ? (
                     <div className="inline-flex items-center px-3 py-2 rounded border border-dashed border-gray-200 text-xs text-gray-300">
                       Sin registros

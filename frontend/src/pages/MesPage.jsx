@@ -303,10 +303,10 @@ export default function MesPage() {
               <tr className="border-t-2 border-gray-300">
                 <td className="px-4 py-2 font-semibold">Sin usar</td>
                 <td className={`px-4 py-2 text-right font-semibold ${sinUsarEstimado < 0 ? "text-red-600" : ""}`}>
-                  {sinUsarEstimado < 0 ? `(${fmt(Math.abs(sinUsarEstimado))})` : fmt(sinUsarEstimado)}
+                  {sinUsarEstimado < 0 ? `-${fmt(Math.abs(sinUsarEstimado))}` : fmt(sinUsarEstimado)}
                 </td>
                 <td className={`px-4 py-2 text-right font-semibold ${sinUsarReal < 0 ? "text-red-600" : ""}`}>
-                  {sinUsarReal < 0 ? `(${fmt(Math.abs(sinUsarReal))})` : fmt(sinUsarReal)}
+                  {sinUsarReal < 0 ? `-${fmt(Math.abs(sinUsarReal))}` : fmt(sinUsarReal)}
                 </td>
               </tr>
             </tbody>

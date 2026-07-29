@@ -45,6 +45,18 @@ function formatoFechaLarga(fechaISO) {
   return d.toLocaleDateString("es", { day: "numeric", month: "long", timeZone: "UTC" });
 }
 
+// Gastos fijos que se pagan con tarjeta a veces se marcan como pagados hasta
+// que corta el ciclo (ej. el 10 del mes siguiente), ya entrado el mes nuevo.
+// Durante esos primeros dias el selector tambien ofrece los gastos fijos del
+// mes anterior que quedaron sin marcar, para no tener que ir a Presupuesto a
+// registrarlos — igual siguen contando para el mes al que en verdad
+// pertenecen, no para el mes actual.
+const DIAS_GRACIA_MES_ANTERIOR = 10;
+
+function mesAnterior(anio, mes) {
+  return mes === 1 ? { anio: anio - 1, mes: 12 } : { anio, mes: mes - 1 };
+}
+
 export default function RegistroRapidoPage() {
   const hoyReal = useMemo(() => hoyISO(), []);
   // Todo el mes (1 al 28/29/30/31, segun corresponda) para poder registrar
@@ -79,6 +91,7 @@ export default function RegistroRapidoPage() {
   const [cuenta, setCuenta] = useState("");
 
   const [gastosFijos, setGastosFijos] = useState([]);
+  const [gastosFijosMesAnterior, setGastosFijosMesAnterior] = useState([]);
   const [gastoFijoId, setGastoFijoId] = useState("");
   const [montoFijo, setMontoFijo] = useState("");
   const [enviandoFijo, setEnviandoFijo] = useState(false);
@@ -86,22 +99,53 @@ export default function RegistroRapidoPage() {
   const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
   const [cuentaFijo, setCuentaFijo] = useState("");
 
-  async function cargarTodo() {
-    const { anio, mes } = anioMes(fechaSeleccionada);
-    const [totales, botonesData, categoriasData, trackerMes, gastosFijosData, tarjetasData] = await Promise.all([
-      obtenerGastadoHoy(fechaSeleccionada),
-      listarBotonesRapidos(),
-      listarCategorias(),
-      listarTracker(anio, mes),
-      listarGastosFijosMensual(anio, mes),
-      listarTarjetas(),
-    ]);
+  // Cada seccion se carga por separado (en vez de un solo Promise.all) para
+  // que la que llega primero se pueda pintar ya — antes, si una tardaba mas
+  // (ej. gastos fijos, que resuelve vigencia/sugerencias), toda la pantalla
+  // se quedaba en blanco esperandola, incluidos los botones rapidos que en
+  // si son una consulta simple y rapida.
+  async function cargarGastadoDia() {
+    const totales = await obtenerGastadoHoy(fechaSeleccionada);
     setGastadoDia(totales.totalHoy);
-    setBotones(botonesData);
-    setCategorias(categoriasData);
-    setRegistrosMes(trackerMes);
-    setGastosFijos(gastosFijosData.gastosFijos);
-    setTarjetas(tarjetasData);
+  }
+  async function cargarBotones() {
+    setBotones(await listarBotonesRapidos());
+  }
+  async function cargarCategorias() {
+    setCategorias(await listarCategorias());
+  }
+  async function cargarTracker() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    setRegistrosMes(await listarTracker(anio, mes));
+  }
+  async function cargarGastosFijos() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    const data = await listarGastosFijosMensual(anio, mes);
+    setGastosFijos(data.gastosFijos);
+  }
+  async function cargarGastosFijosMesAnterior() {
+    const dia = diaDelMes(hoyReal);
+    if (dia > DIAS_GRACIA_MES_ANTERIOR) {
+      setGastosFijosMesAnterior([]);
+      return;
+    }
+    const actual = anioMes(hoyReal);
+    const { anio, mes } = mesAnterior(actual.anio, actual.mes);
+    const data = await listarGastosFijosMensual(anio, mes);
+    setGastosFijosMesAnterior(data.gastosFijos);
+  }
+  async function cargarTarjetas() {
+    setTarjetas(await listarTarjetas());
+  }
+
+  function cargarTodo() {
+    cargarGastadoDia();
+    cargarBotones();
+    cargarCategorias();
+    cargarTracker();
+    cargarGastosFijos();
+    cargarGastosFijosMesAnterior();
+    cargarTarjetas();
   }
 
   useEffect(() => {
@@ -121,10 +165,19 @@ export default function RegistroRapidoPage() {
   // Un gasto fijo ya pagado en su totalidad este mes (real >= estimado) deja
   // de mostrarse en el selector — no hay nada más que pagar ahí. Si solo se
   // pagó una parte (real < estimado), se sigue mostrando hasta completarlo.
-  const gastosFijosDisponibles = useMemo(
-    () => gastosFijos.filter((g) => !(g.montoReal !== null && Number(g.montoReal) >= Number(g.montoEstimado))),
-    [gastosFijos]
-  );
+  function faltaPagar(g) {
+    return !(g.montoReal !== null && Number(g.montoReal) >= Number(g.montoEstimado));
+  }
+
+  const gastosFijosDisponibles = useMemo(() => {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    const actuales = gastosFijos.filter(faltaPagar).map((g) => ({ ...g, _anio: anio, _mes: mes, _mesAnterior: false }));
+    const anterior = mesAnterior(anio, mes);
+    const pendientesAnterior = gastosFijosMesAnterior
+      .filter(faltaPagar)
+      .map((g) => ({ ...g, _anio: anterior.anio, _mes: anterior.mes, _mesAnterior: true }));
+    return [...actuales, ...pendientesAnterior];
+  }, [gastosFijos, gastosFijosMesAnterior, fechaSeleccionada]);
 
   function registrosDelConcepto(concepto) {
     return registrosMes
@@ -137,7 +190,7 @@ export default function RegistroRapidoPage() {
     setMensaje("");
     try {
       await registrarTracker({ fecha: fechaSeleccionada, concepto, monto: montoBoton });
-      await cargarTodo();
+      cargarTodo();
       setMensaje(`Registrado: $${montoBoton.toFixed(2)}`);
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar");
@@ -148,7 +201,7 @@ export default function RegistroRapidoPage() {
 
   async function handleEliminarTracker(id) {
     await eliminarTracker(id);
-    await cargarTodo();
+    cargarTodo();
   }
 
   async function handleMontoLibre(concepto) {
@@ -191,7 +244,7 @@ export default function RegistroRapidoPage() {
       setFuentePago("EFECTIVO");
       setTarjetaId("");
       setCuenta("");
-      await cargarTodo();
+      cargarTodo();
       const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
       setMensaje("Gasto registrado");
@@ -219,9 +272,9 @@ export default function RegistroRapidoPage() {
     }
     setEnviandoFijo(true);
     try {
-      const { anio, mes } = anioMes(fechaSeleccionada);
+      const [gastoFijoConfigId, anio, mes] = gastoFijoId.split("|").map(Number);
       await guardarGastoFijoMensual({
-        gastoFijoConfigId: Number(gastoFijoId),
+        gastoFijoConfigId,
         anio,
         mes,
         montoReal: Number(montoFijo),
@@ -480,8 +533,8 @@ export default function RegistroRapidoPage() {
             >
               <option value="">-- Elegir gasto fijo --</option>
               {gastosFijosDisponibles.map((g) => (
-                <option key={g.gastoFijoConfigId} value={g.gastoFijoConfigId}>
-                  {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)})
+                <option key={`${g.gastoFijoConfigId}-${g._anio}-${g._mes}`} value={`${g.gastoFijoConfigId}|${g._anio}|${g._mes}`}>
+                  {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)}){g._mesAnterior ? " — mes anterior" : ""}
                 </option>
               ))}
             </select>

@@ -5,7 +5,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { obtenerResumenAnual, obtenerResumenAnualCompleto } from "../api/dashboard";
+import { obtenerResumenAnualCompleto } from "../api/dashboard";
 import { anioActual } from "../utils/fecha";
 import DonutConTotal from "../components/DonutConTotal";
 import GraficaEstimadoReal from "../components/GraficaEstimadoReal";
@@ -97,24 +97,67 @@ function TarjetaSparkline({ titulo, datos, color, rangoTexto }) {
   );
 }
 
+// A partir del payload ya agregado de resumen-anual-completo (un puñado de
+// consultas) se derivan mes a mes ingresos/gastos/ahorro reales, sin pedirle
+// nada nuevo al backend — antes esto salía de un segundo endpoint
+// (resumen-anual) que hacía 1 ronda de consultas POR MES con presupuesto
+// (podía tardar 30s+ con varios meses de datos) solo para recalcular casi lo
+// mismo que completo ya trae.
+function derivarMeses(completo) {
+  return Array.from({ length: 12 }, (_, i) => {
+    const mes = i + 1;
+    return {
+      mes,
+      ingresosReal: completo.ingresos.meses[i].real,
+      gastosReal: redondear(
+        completo.gastosFijos.meses[i].real + completo.gastosVariables.meses[i].real + completo.deudas.meses[i].real
+      ),
+      ahorroReal: completo.ahorros.meses[i].real,
+    };
+  });
+}
+
+function redondear(v) {
+  return Math.round(v * 100) / 100;
+}
+
+// La tendencia original tambien contaba meses excedidos por categoria
+// variable individual (Temu, Universidad, etc.), pero esa granularidad solo
+// existía en el endpoint lento que se elimina aquí — completo únicamente
+// trae el total mensual de gastos variables, no por categoría. Se conserva
+// la parte de Gastos fijos y Deudas, que sí siguen siendo exactas.
+function calcularTendencia(completo) {
+  const excesos = (seccion) => seccion.meses.filter((m) => m.estimado > 0 && m.real > m.estimado).length;
+  const excesosFijos = excesos(completo.gastosFijos);
+  const excesosDeudas = excesos(completo.deudas);
+  if (excesosFijos === 0 && excesosDeudas === 0) return null;
+  return excesosFijos >= excesosDeudas
+    ? { categoria: "Gastos fijos", mesesExcedidos: excesosFijos }
+    : { categoria: "Deudas", mesesExcedidos: excesosDeudas };
+}
+
 export default function ResumenAnualPage() {
   const [anio, setAnio] = useState(anioActual());
-  const [resumen, setResumen] = useState(null);
   const [completo, setCompleto] = useState(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     setCargando(true);
-    Promise.all([obtenerResumenAnual(anio), obtenerResumenAnualCompleto(anio)]).then(([r, c]) => {
-      setResumen(r);
+    obtenerResumenAnualCompleto(anio).then((c) => {
       setCompleto(c);
       setCargando(false);
     });
   }, [anio]);
 
-  if (cargando || !resumen || !completo) {
-    return <div className="p-6 text-center text-gray-500">Cargando resumen anual (puede tardar unos segundos)...</div>;
+  if (cargando || !completo) {
+    return <div className="p-6 text-center text-gray-500">Cargando resumen anual...</div>;
   }
+
+  const meses = derivarMeses(completo);
+  const totalAhorradoAnual = redondear(meses.reduce((s, m) => s + m.ahorroReal, 0));
+  const mesMasGasto = meses.reduce((max, m) => (m.gastosReal > max.gastosReal ? m : max), meses[0]).mes;
+  const mesMasAhorro = meses.reduce((max, m) => (m.ahorroReal > max.ahorroReal ? m : max), meses[0]).mes;
+  const tendencia = calcularTendencia(completo);
 
   const presupuestoAnual = [
     { nombre: "Ingresos", ...completo.ingresos.total },
@@ -128,7 +171,7 @@ export default function ResumenAnualPage() {
     .filter((c) => c.nombre !== "Ingresos" && c.real > 0)
     .map((c) => ({ name: c.nombre, value: c.real }));
 
-  const dataLinea = resumen.meses.map((m) => ({
+  const dataLinea = meses.map((m) => ({
     mes: MESES_CORTOS[m.mes - 1],
     Ingresos: m.ingresosReal,
     Gastos: m.gastosReal,
@@ -149,22 +192,22 @@ export default function ResumenAnualPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs text-gray-500">Total ahorrado en el año</p>
-          <p className="text-xl font-bold text-green-600">${resumen.totalAhorradoAnual.toFixed(2)}</p>
+          <p className="text-xl font-bold text-green-600">${totalAhorradoAnual.toFixed(2)}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs text-gray-500">Mes con más gasto</p>
-          <p className="text-xl font-bold text-gray-900">{MESES[resumen.mesMasGasto - 1]}</p>
+          <p className="text-xl font-bold text-gray-900">{MESES[mesMasGasto - 1]}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs text-gray-500">Mes con más ahorro</p>
-          <p className="text-xl font-bold text-gray-900">{MESES[resumen.mesMasAhorro - 1]}</p>
+          <p className="text-xl font-bold text-gray-900">{MESES[mesMasAhorro - 1]}</p>
         </div>
       </div>
 
-      {resumen.tendencia && (
+      {tendencia && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-3 text-sm">
-          📈 Tendencia: te excediste en <strong>{resumen.tendencia.categoria}</strong> en{" "}
-          {resumen.tendencia.mesesExcedidos} de los meses con datos este año.
+          📈 Tendencia: te excediste en <strong>{tendencia.categoria}</strong> en{" "}
+          {tendencia.mesesExcedidos} de los meses con datos este año.
         </div>
       )}
 

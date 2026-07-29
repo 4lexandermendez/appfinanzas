@@ -1,7 +1,6 @@
 const prisma = require("../lib/prisma");
 const { redondear } = require("../utils/dinero");
 const { calcularResumenMes } = require("../services/resumenMensualService");
-const { calcularResumenAnual } = require("../services/resumenAnualService");
 const { calcularResumenAnualCompleto } = require("../services/resumenAnualCompletoService");
 const { parseFechaSoloDia, hoyElSalvador } = require("../utils/fecha");
 
@@ -54,15 +53,6 @@ async function resumenMes(req, res) {
   res.json(resultado);
 }
 
-async function resumenAnual(req, res) {
-  const anio = Number(req.query.anio);
-  if (!anio) {
-    return res.status(400).json({ error: "anio es requerido" });
-  }
-  const resultado = await calcularResumenAnual(req.usuarioId, anio);
-  res.json(resultado);
-}
-
 async function resumenAnualCompleto(req, res) {
   const anio = Number(req.query.anio);
   if (!anio) {
@@ -72,4 +62,4 @@ async function resumenAnualCompleto(req, res) {
   res.json(resultado);
 }
 
-module.exports = { hoy, resumenMes, resumenAnual, resumenAnualCompleto };
+module.exports = { hoy, resumenMes, resumenAnualCompleto };

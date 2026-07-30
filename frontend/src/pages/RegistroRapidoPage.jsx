@@ -3,6 +3,7 @@ import { obtenerGastadoHoy } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
+import { listarEstimadoVariables } from "../api/categoriasVariablesMensual";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
 import { listarTarjetas } from "../api/tarjetas";
@@ -76,6 +77,7 @@ export default function RegistroRapidoPage() {
   const [gastadoDia, setGastadoDia] = useState(null);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [estimadoVariables, setEstimadoVariables] = useState([]);
   const [registrosMes, setRegistrosMes] = useState([]);
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
@@ -114,6 +116,10 @@ export default function RegistroRapidoPage() {
   async function cargarCategorias() {
     setCategorias(await listarCategorias());
   }
+  async function cargarEstimadoVariables() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    setEstimadoVariables(await listarEstimadoVariables(anio, mes));
+  }
   async function cargarTracker() {
     const { anio, mes } = anioMes(fechaSeleccionada);
     setRegistrosMes(await listarTracker(anio, mes));
@@ -142,6 +148,7 @@ export default function RegistroRapidoPage() {
     cargarGastadoDia();
     cargarBotones();
     cargarCategorias();
+    cargarEstimadoVariables();
     cargarTracker();
     cargarGastosFijos();
     cargarGastosFijosMesAnterior();
@@ -178,6 +185,21 @@ export default function RegistroRapidoPage() {
       .map((g) => ({ ...g, _anio: anterior.anio, _mes: anterior.mes, _mesAnterior: true }));
     return [...actuales, ...pendientesAnterior];
   }, [gastosFijos, gastosFijosMesAnterior, fechaSeleccionada]);
+
+  // Igual que con gastos fijos: una categoría variable ya pagada en su
+  // totalidad este mes (real >= estimado) deja de mostrarse en el selector.
+  // Transporte y Comida quedan afuera de este filtro porque su "estimado"
+  // es el presupuesto automático del tracker (Ajustes), no algo que uno
+  // "complete" y termine — casi siempre queda saldo sin gastar ahí.
+  const categoriasDisponibles = useMemo(() => {
+    const estimadoPorCategoria = new Map(estimadoVariables.map((e) => [e.categoriaId, e]));
+    return categorias.filter((cat) => {
+      const info = estimadoPorCategoria.get(cat.id);
+      if (!info || info.esDefault) return true;
+      if (info.montoEstimado === null) return true;
+      return !(Number(info.montoReal) >= Number(info.montoEstimado));
+    });
+  }, [categorias, estimadoVariables]);
 
   function registrosDelConcepto(concepto) {
     return registrosMes
@@ -439,7 +461,7 @@ export default function RegistroRapidoPage() {
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             >
               <option value="">-- Elegir categoría --</option>
-              {categorias.map((cat) => (
+              {categoriasDisponibles.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.nombre}
                 </option>

@@ -87,9 +87,9 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
                     <div className={`text-xs ${esHoy ? "font-bold text-purple-700" : "text-gray-500"}`}>{dia}</div>
                     {motivo ? (
                       <div className="text-[10px] text-gray-400 mt-1">{motivo}</div>
-                    ) : total ? (
-                      <div className="text-xs text-gray-700 mt-1">{fmt(total)}</div>
-                    ) : null}
+                    ) : (
+                      <div className="text-xs text-gray-700 mt-1">{fmt(total || 0)}</div>
+                    )}
                   </td>
                 );
               })}

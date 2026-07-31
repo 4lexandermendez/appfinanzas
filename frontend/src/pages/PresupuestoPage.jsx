@@ -15,6 +15,7 @@ import {
 import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
 import { crearCategoria } from "../api/categorias";
 import { hoyAnioMes } from "../utils/fecha";
+import PromptModal from "../components/PromptModal";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -126,7 +127,15 @@ export default function PresupuestoPage() {
     setGastosFijos(gf.gastosFijos);
     setSugerenciasFijos(gf.sugerencias);
     setDeudas(d);
-    setEstimadoVariables(ev.filter((c) => !c.esDefault));
+    // Las categorias variables son una lista reutilizable global (a
+    // diferencia de los gastos fijos, no tienen mecanismo de "sugerencia
+    // mes a mes"), asi que sin este filtro cualquier categoria creada
+    // alguna vez aparecia en TODOS los meses aunque no tuviera nada que
+    // ver con ese mes. Solo se muestra si tiene estimado puesto o ya se
+    // registro algo real ese mes especifico.
+    setEstimadoVariables(
+      ev.filter((c) => !c.esDefault && (c.montoEstimado !== null || Number(c.montoReal) > 0))
+    );
     setCargando(false);
   }
 
@@ -183,12 +192,19 @@ export default function PresupuestoPage() {
     await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado: Number(montoEstimado) });
     cargarTodo();
   }
-  async function handleAgregarSugerenciaFijo(gastoFijoConfigId, montoSugerido) {
-    const respuesta = window.prompt(`¿Con qué monto lo agrego este mes?`, Number(montoSugerido).toFixed(2));
-    if (respuesta === null || respuesta === "") return;
+  const [sugerenciaAbierta, setSugerenciaAbierta] = useState(null);
+
+  function handleAgregarSugerenciaFijo(gastoFijoConfigId, nombre, montoSugerido) {
+    setSugerenciaAbierta({ gastoFijoConfigId, nombre, montoSugerido });
+  }
+
+  async function confirmarSugerenciaFijo(respuesta) {
+    const activa = sugerenciaAbierta;
+    setSugerenciaAbierta(null);
+    if (!activa || respuesta === "") return;
     const monto = Number(respuesta);
     if (!Number.isFinite(monto) || monto < 0) return;
-    await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoEstimado: monto });
+    await guardarGastoFijoMensual({ gastoFijoConfigId: activa.gastoFijoConfigId, anio, mes, montoEstimado: monto });
     cargarTodo();
   }
 
@@ -392,7 +408,7 @@ export default function PresupuestoPage() {
                       <span className="flex-1">{s.nombre}</span>
                       <span>${Number(s.montoSugerido).toFixed(2)}</span>
                       <button
-                        onClick={() => handleAgregarSugerenciaFijo(s.gastoFijoConfigId, s.montoSugerido)}
+                        onClick={() => handleAgregarSugerenciaFijo(s.gastoFijoConfigId, s.nombre, s.montoSugerido)}
                         className="text-purple-600 hover:underline"
                       >
                         Agregar
@@ -438,6 +454,16 @@ export default function PresupuestoPage() {
           </div>
         </section>
       </div>
+
+      <PromptModal
+        abierto={!!sugerenciaAbierta}
+        titulo={sugerenciaAbierta?.nombre}
+        mensaje="¿Con qué monto lo agregás este mes?"
+        valorInicial={sugerenciaAbierta ? Number(sugerenciaAbierta.montoSugerido).toFixed(2) : ""}
+        tipo="number"
+        onAceptar={confirmarSugerenciaFijo}
+        onCancelar={() => setSugerenciaAbierta(null)}
+      />
     </div>
   );
 }

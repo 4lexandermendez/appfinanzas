@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { obtenerGastadoHoy } from "../api/dashboard";
+import { obtenerGastadoHoy, obtenerResumenMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
@@ -75,6 +75,7 @@ export default function RegistroRapidoPage() {
 
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
   const [gastadoDia, setGastadoDia] = useState(null);
+  const [saldoDisponible, setSaldoDisponible] = useState(null);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
@@ -109,6 +110,18 @@ export default function RegistroRapidoPage() {
   async function cargarGastadoDia() {
     const totales = await obtenerGastadoHoy(fechaSeleccionada);
     setGastadoDia(totales.totalHoy);
+  }
+  // Saldo disponible del mes: lo mismo que "Sin usar (Real)" en Mes — lo
+  // que ya entró de ingresos reales menos todo lo que ya salio (ahorros,
+  // gastos fijos, gastos variables, deudas). Sirve para ver de un vistazo
+  // si ya te quedaste sin plata de la quincena (queda en rojo/negativo)
+  // antes de que entre el proximo ingreso.
+  async function cargarSaldoDisponible() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    const resumen = await obtenerResumenMes(anio, mes);
+    const gastado =
+      resumen.ahorros.real + resumen.gastosFijos.real + resumen.gastosVariables.real + resumen.deudas.real;
+    setSaldoDisponible(resumen.ingresos.real - gastado);
   }
   async function cargarBotones() {
     setBotones(await listarBotonesRapidos());
@@ -146,6 +159,7 @@ export default function RegistroRapidoPage() {
 
   function cargarTodo() {
     cargarGastadoDia();
+    cargarSaldoDisponible();
     cargarBotones();
     cargarCategorias();
     cargarEstimadoVariables();
@@ -319,7 +333,17 @@ export default function RegistroRapidoPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className="relative bg-white rounded-lg shadow p-6 text-center">
+        {saldoDisponible !== null && (
+          <div
+            className={`absolute top-2 right-3 text-xs font-semibold ${
+              saldoDisponible < 0 ? "text-red-600" : "text-green-600"
+            }`}
+            title="Ingresos reales del mes menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso"
+          >
+            {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
+          </div>
+        )}
         <p className="text-sm text-gray-500">
           {fechaSeleccionada === hoyReal ? "Hoy llevas gastado" : `Llevas gastado el ${formatoFechaLarga(fechaSeleccionada)}`}
         </p>

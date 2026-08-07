@@ -1,6 +1,5 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
-const { estaVigenteEnMes } = require("../utils/vigencia");
 
 async function listarConfig(req, res) {
   const deudas = await prisma.deudaConfig.findMany({
@@ -74,7 +73,9 @@ async function listarMensual(req, res) {
     where: { usuarioId: req.usuarioId },
     orderBy: { nombre: "asc" },
   });
-  const config = configTodos.filter((c) => estaVigenteEnMes(c, anio, mes));
+  // Una deuda ya saldada (saldoActual en 0) no tiene nada mas que pagar, asi
+  // que desaparece sola en vez de tener que deshabilitarla a mano.
+  const config = configTodos.filter((c) => Number(c.saldoActual) > 0);
 
   const presupuesto = await prisma.presupuestoMensual.findUnique({
     where: { usuarioId_anio_mes: { usuarioId: req.usuarioId, anio, mes } },
@@ -87,9 +88,17 @@ async function listarMensual(req, res) {
   const deudas = config.map((c) => {
     const registro = porConfig.get(c.id);
     return {
+      id: c.id,
       deudaConfigId: c.id,
       nombre: c.nombre,
-      montoEstimado: registro?.montoEstimado ?? null,
+      activo: c.activo,
+      creadoEn: c.creadoEn,
+      desactivadoEn: c.desactivadoEn,
+      // Si todavia no se guardo un estimado propio para este mes, se
+      // sugiere el saldo pendiente actual (lo que falta de pagar) para que
+      // el mes siguiente ya traiga automaticamente lo que quedo debiendo,
+      // en vez de arrancar vacio cada vez.
+      montoEstimado: registro?.montoEstimado ?? Number(c.saldoActual),
       montoReal: registro?.montoReal ?? null,
       actual: c.saldoActual,
     };

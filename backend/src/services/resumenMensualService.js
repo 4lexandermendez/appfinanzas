@@ -42,11 +42,17 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
   };
 
-  const deudasVigentes = deudasConfig.filter((d) => estaVigenteEnMes(d, anio, mes));
+  // Una deuda ya saldada (saldoActual en 0) no tiene nada mas que pagar.
+  const deudasVigentes = deudasConfig.filter((d) => estaVigenteEnMes(d, anio, mes) && Number(d.saldoActual) > 0);
   const deudasPorConfig = new Map(deudasMensual.map((d) => [d.deudaConfigId, d]));
   const deudasResumen = {
+    // Si no se guardo un estimado propio este mes, se usa el saldo
+    // pendiente actual como sugerencia (ver deudaController.listarMensual).
     estimado: redondear(
-      deudasVigentes.reduce((s, d) => s + Number(deudasPorConfig.get(d.id)?.montoEstimado || 0), 0)
+      deudasVigentes.reduce(
+        (s, d) => s + (deudasPorConfig.get(d.id)?.montoEstimado ?? Number(d.saldoActual)),
+        0
+      )
     ),
     // El Real suma todo lo ya registrado (deudasMensual), sin filtrar por
     // vigencia: un pago que ya pasó no debe desaparecer del historial solo

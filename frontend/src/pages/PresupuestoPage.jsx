@@ -10,7 +10,7 @@ import {
   listarGastosFijosMensual, guardarGastoFijoMensual,
 } from "../api/gastosFijos";
 import {
-  listarDeudasConfig, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
+  listarDeudasMensual, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
 } from "../api/deudas";
 import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
 import { crearCategoria } from "../api/categorias";
@@ -119,7 +119,7 @@ export default function PresupuestoPage() {
       listarIngresos(anio, mes),
       listarAhorros(anio, mes),
       listarGastosFijosMensual(anio, mes),
-      listarDeudasConfig(),
+      listarDeudasMensual(anio, mes),
       listarEstimadoVariables(anio, mes),
     ]);
     setIngresos(i);
@@ -334,15 +334,19 @@ export default function PresupuestoPage() {
                   {estaVigenteEnMes(d, anio, mes) ? (
                     <>
                       <input
+                        key={`${d.id}-${anio}-${mes}-estimado`}
                         type="number"
                         step="0.01"
+                        defaultValue={d.montoEstimado ?? ""}
                         placeholder="Estimado del mes"
                         onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
                         className="w-28 border border-gray-300 rounded px-2 py-1"
                       />
                       <input
+                        key={`${d.id}-${anio}-${mes}-real`}
                         type="number"
                         step="0.01"
+                        defaultValue={d.montoReal ?? ""}
                         placeholder="Real (pago)"
                         onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
                         className="w-24 border border-gray-300 rounded px-2 py-1"

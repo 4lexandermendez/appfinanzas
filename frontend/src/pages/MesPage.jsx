@@ -19,6 +19,13 @@ const MESES = [
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
+const CONCEPTOS_TRACKER = [
+  { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
+  { valor: "DESAYUNO", etiqueta: "Desayuno" },
+  { valor: "ALMUERZO", etiqueta: "Almuerzo" },
+  { valor: "PASAJE_REGRESO", etiqueta: "Pasaje regreso" },
+];
+
 function diasEnElMes(anio, mes) {
   return new Date(Date.UTC(anio, mes, 0)).getUTCDate();
 }
@@ -49,11 +56,15 @@ function construirSemanas(anio, mes) {
 function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
   const semanas = construirSemanas(anio, mes);
   const hoyStr = hoyISO();
+  const [diaSeleccionado, setDiaSeleccionado] = useState(null);
 
   const totalPorDia = new Map();
+  const registrosPorDia = new Map();
   for (const r of registrosTracker) {
     const dia = Number(r.fecha.slice(8, 10));
     totalPorDia.set(dia, (totalPorDia.get(dia) || 0) + Number(r.monto));
+    if (!registrosPorDia.has(dia)) registrosPorDia.set(dia, []);
+    registrosPorDia.get(dia).push(r);
   }
   const librePorDia = new Map();
   for (const d of diasLibres) {
@@ -61,8 +72,8 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center">
+    <div className="bg-white rounded-lg shadow">
+      <div className="px-4 py-2 font-semibold text-sm bg-gray-100 text-gray-700 text-center rounded-t-lg">
         Calendario semanal (Lunes a Sábado)
       </div>
       <table className="w-full text-sm text-center">
@@ -82,13 +93,37 @@ function CalendarioSemanal({ anio, mes, registrosTracker, diasLibres }) {
                 const esHoy = fechaISO === hoyStr;
                 const motivo = librePorDia.get(dia);
                 const total = totalPorDia.get(dia);
+                const abierto = diaSeleccionado === dia;
+                const registrosDia = registrosPorDia.get(dia) || [];
                 return (
-                  <td key={col} className={`px-2 py-2 align-top ${motivo ? "bg-gray-50" : ""}`}>
-                    <div className={`text-xs ${esHoy ? "font-bold text-purple-700" : "text-gray-500"}`}>{dia}</div>
-                    {motivo ? (
-                      <div className="text-[10px] text-gray-400 mt-1">{motivo}</div>
-                    ) : (
-                      <div className="text-xs text-gray-700 mt-1">{fmt(total || 0)}</div>
+                  <td key={col} className="px-1 py-1 align-top relative">
+                    <button
+                      type="button"
+                      onClick={() => !motivo && setDiaSeleccionado(abierto ? null : dia)}
+                      className={`w-full rounded px-1 py-1 ${motivo ? "bg-gray-50 cursor-default" : "hover:bg-purple-50"} ${abierto ? "bg-purple-50 ring-1 ring-purple-300" : ""}`}
+                    >
+                      <div className={`text-xs ${esHoy ? "font-bold text-purple-700" : "text-gray-500"}`}>{dia}</div>
+                      {motivo ? (
+                        <div className="text-[10px] text-gray-400 mt-1">{motivo}</div>
+                      ) : (
+                        <div className="text-xs text-gray-700 mt-1">{fmt(total || 0)}</div>
+                      )}
+                    </button>
+
+                    {abierto && !motivo && (
+                      <div className="absolute z-20 top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-100 p-3 text-left">
+                        {CONCEPTOS_TRACKER.map((c) => {
+                          const monto = registrosDia
+                            .filter((r) => r.concepto === c.valor)
+                            .reduce((s, r) => s + Number(r.monto), 0);
+                          return (
+                            <div key={c.valor} className="flex items-center justify-between text-xs py-0.5">
+                              <span className="text-gray-500">{c.etiqueta}</span>
+                              <span className="text-gray-800 font-medium">{fmt(monto)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </td>
                 );
@@ -252,10 +287,18 @@ export default function MesPage() {
     nombre: g.nombre, montoEstimado: g.montoEstimado, montoReal: g.montoReal || 0,
     diferencia: Number(g.montoEstimado) - Number(g.montoReal || 0),
   }));
-  const filasGastosVariables = resumen.gastosVariables.porCategoria.map((c) => ({
-    nombre: c.nombre, montoEstimado: c.estimado || 0, montoReal: c.real,
-    diferencia: Number(c.estimado || 0) - Number(c.real),
-  }));
+  // Las categorias variables son una lista global reutilizable (a diferencia
+  // de Gastos Fijos, que si tienen "una fila por mes"), asi que sin este
+  // filtro cualquier categoria que el usuario alguna vez creo aparecia en
+  // todos los meses aunque no tuviera nada puesto ese mes en particular.
+  // Comida y Transporte quedan siempre porque su estimado sale del tracker
+  // automatico, no de algo que se "agregue" mes a mes.
+  const filasGastosVariables = resumen.gastosVariables.porCategoria
+    .filter((c) => c.esDefault || c.estimado !== null || Number(c.real) > 0)
+    .map((c) => ({
+      nombre: c.nombre, montoEstimado: c.estimado || 0, montoReal: c.real,
+      diferencia: Number(c.estimado || 0) - Number(c.real),
+    }));
   const filasDeudas = deudas.map((d) => ({
     nombre: d.nombre, montoEstimado: d.montoEstimado || 0, montoReal: d.montoReal || 0, actual: d.actual,
   }));

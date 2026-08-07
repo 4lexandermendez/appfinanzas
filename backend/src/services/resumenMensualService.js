@@ -88,7 +88,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
       real = redondear(real + resumenTracker.comidaReal);
       estimado = comidaEstimado;
     }
-    return { categoriaId: c.id, nombre: c.nombre, real, estimado };
+    return { categoriaId: c.id, nombre: c.nombre, esDefault: c.esDefault, real, estimado };
   });
 
   const gastosVariablesResumen = {

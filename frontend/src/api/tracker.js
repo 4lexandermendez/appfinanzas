@@ -18,3 +18,8 @@ export async function obtenerDetalleQuincenal(anio, mes) {
   const { data } = await client.get("/tracker/quincenal", { params: { anio, mes } });
   return data;
 }
+
+export async function obtenerEstimadoMes(anio, mes) {
+  const { data } = await client.get("/tracker/estimado", { params: { anio, mes } });
+  return data;
+}

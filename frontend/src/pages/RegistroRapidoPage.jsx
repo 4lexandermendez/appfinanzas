@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerGastadoHoy, obtenerResumenMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
-import { registrarTracker, listarTracker, eliminarTracker } from "../api/tracker";
+import { registrarTracker, listarTracker, eliminarTracker, obtenerEstimadoMes } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
 import { listarEstimadoVariables } from "../api/categoriasVariablesMensual";
 import { crearTransaccion } from "../api/transacciones";
@@ -80,6 +80,7 @@ export default function RegistroRapidoPage() {
   const [categorias, setCategorias] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
   const [registrosMes, setRegistrosMes] = useState([]);
+  const [estimadoDias, setEstimadoDias] = useState(null);
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
 
@@ -137,6 +138,19 @@ export default function RegistroRapidoPage() {
     const { anio, mes } = anioMes(fechaSeleccionada);
     setRegistrosMes(await listarTracker(anio, mes));
   }
+  // Para saber si un sabado realmente "toca" (segun el patron alterno de
+  // Ajustes) en vez de adivinarlo por si ya tiene datos registrados o no —
+  // un sabado futuro que si toca no debe verse bloqueado solo porque
+  // todavia no se le registra nada.
+  async function cargarEstimadoDias() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    try {
+      const data = await obtenerEstimadoMes(anio, mes);
+      setEstimadoDias(data.dias);
+    } catch {
+      setEstimadoDias(null);
+    }
+  }
   async function cargarGastosFijos() {
     const { anio, mes } = anioMes(fechaSeleccionada);
     const data = await listarGastosFijosMensual(anio, mes);
@@ -164,6 +178,7 @@ export default function RegistroRapidoPage() {
     cargarCategorias();
     cargarEstimadoVariables();
     cargarTracker();
+    cargarEstimadoDias();
     cargarGastosFijos();
     cargarGastosFijosMesAnterior();
     cargarTarjetas();
@@ -181,6 +196,10 @@ export default function RegistroRapidoPage() {
   const diasConRegistro = useMemo(
     () => new Set(registrosMes.map((r) => r.fecha.slice(0, 10))),
     [registrosMes]
+  );
+  const tipoPorDia = useMemo(
+    () => new Map((estimadoDias || []).map((d) => [d.fecha, d.tipo])),
+    [estimadoDias]
   );
 
   // Un gasto fijo ya pagado en su totalidad este mes (real >= estimado) deja
@@ -362,7 +381,14 @@ export default function RegistroRapidoPage() {
             const seleccionado = f === fechaSeleccionada;
             const esHoy = f === hoyReal;
             const dow = diaSemana(f);
-            const finDeSemanaSinDatos = (dow === 0 || dow === 6) && !diasConRegistro.has(f);
+            const tipo = tipoPorDia.get(f);
+            // Si ya sabemos el tipo real del dia (segun el patron alterno de
+            // sabados de Ajustes + dias libres), lo usamos; si no hay Ajustes
+            // configurados todavia, se cae al heuristico viejo (fin de semana
+            // sin ningun registro) para no dejar el carrusel sin marcar nada.
+            const finDeSemanaSinDatos = tipo
+              ? tipo === "DOMINGO" || tipo === "SABADO_NO_TOCA" || tipo === "LIBRE"
+              : (dow === 0 || dow === 6) && !diasConRegistro.has(f);
             return (
               <button
                 key={f}

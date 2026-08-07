@@ -209,7 +209,13 @@ export default function RegistroRapidoPage() {
     const estimadoPorCategoria = new Map(estimadoVariables.map((e) => [e.categoriaId, e]));
     return categorias.filter((cat) => {
       const info = estimadoPorCategoria.get(cat.id);
-      if (!info || info.esDefault) return true;
+      if (!info) return false;
+      if (info.esDefault) return true;
+      // Las categorias variables son una lista global reutilizable: una
+      // categoria de otro mes (sin estimado puesto ni nada real este mes)
+      // no "pertenece" a este mes y no debe aparecer en el selector.
+      const perteneceAlMes = info.montoEstimado !== null || Number(info.montoReal) > 0;
+      if (!perteneceAlMes) return false;
       if (info.montoEstimado === null) return true;
       return !(Number(info.montoReal) >= Number(info.montoEstimado));
     });

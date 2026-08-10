@@ -6,6 +6,7 @@ import { listarCategorias, crearCategoria } from "../api/categorias";
 import { listarEstimadoVariables } from "../api/categoriasVariablesMensual";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
+import { listarDeudasMensual } from "../api/deudas";
 import { listarTarjetas } from "../api/tarjetas";
 import { hoyISO } from "../utils/fecha";
 
@@ -76,6 +77,7 @@ export default function RegistroRapidoPage() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
   const [gastadoDia, setGastadoDia] = useState(null);
   const [saldoDisponible, setSaldoDisponible] = useState(null);
+  const [deudaTotalPendiente, setDeudaTotalPendiente] = useState(null);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
@@ -127,6 +129,14 @@ export default function RegistroRapidoPage() {
   async function cargarBotones() {
     setBotones(await listarBotonesRapidos());
   }
+  // Saldo pendiente de deudas (lo que aun debes, no lo pagado este mes) —
+  // se muestra aparte del saldo disponible porque ese solo resta el Real ya
+  // pagado, no el total pendiente.
+  async function cargarDeudaTotalPendiente() {
+    const { anio, mes } = anioMes(fechaSeleccionada);
+    const deudas = await listarDeudasMensual(anio, mes);
+    setDeudaTotalPendiente(deudas.reduce((s, d) => s + Number(d.actual || 0), 0));
+  }
   async function cargarCategorias() {
     setCategorias(await listarCategorias());
   }
@@ -176,6 +186,7 @@ export default function RegistroRapidoPage() {
     cargarSaldoDisponible();
     cargarBotones();
     cargarCategorias();
+    cargarDeudaTotalPendiente();
     cargarEstimadoVariables();
     cargarTracker();
     cargarEstimadoDias();
@@ -366,7 +377,15 @@ export default function RegistroRapidoPage() {
             }`}
             title="Ingresos reales del mes menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso"
           >
-            {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
+            Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
+          </div>
+        )}
+        {deudaTotalPendiente !== null && deudaTotalPendiente > 0 && (
+          <div
+            className="absolute top-7 right-3 text-xs font-semibold text-yellow-600"
+            title="Total que aún debés (saldo pendiente de todas tus deudas activas)"
+          >
+            Debés ${deudaTotalPendiente.toFixed(2)}
           </div>
         )}
         <p className="text-sm text-gray-500">

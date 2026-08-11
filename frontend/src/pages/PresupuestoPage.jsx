@@ -330,36 +330,35 @@ export default function PresupuestoPage() {
               {deudas.map((d) => (
                 <div key={d.id} className={`flex items-center gap-2 text-sm ${!d.activo ? "opacity-40" : ""}`}>
                   <span className="flex-1">{d.nombre}</span>
-                  <span className="text-gray-400">Actual ${Number(d.saldoActual).toFixed(2)}</span>
                   {estaVigenteEnMes(d, anio, mes) ? (
                     <>
-                      <input
+                      <InputMonto
                         key={`${d.id}-${anio}-${mes}-estimado`}
-                        type="number"
-                        step="0.01"
+                        placeholder="Estimado"
+                        title="Estimado del mes"
                         defaultValue={d.montoEstimado ?? ""}
-                        placeholder="Estimado del mes"
                         onBlur={(e) => handleDeudaMensual(d.id, "montoEstimado", e.target.value)}
-                        className="w-28 border border-gray-300 rounded px-2 py-1"
                       />
-                      <input
+                      <InputMonto
                         key={`${d.id}-${anio}-${mes}-real`}
-                        type="number"
-                        step="0.01"
+                        placeholder="Real"
+                        title="Real (pagado)"
                         defaultValue={d.montoReal ?? ""}
-                        placeholder="Real (pago)"
                         onBlur={(e) => handleDeudaMensual(d.id, "montoReal", e.target.value)}
-                        className="w-24 border border-gray-300 rounded px-2 py-1"
                       />
                     </>
                   ) : (
-                    <span className="text-xs text-gray-300 w-28">No vigente este mes</span>
+                    <span className="text-xs text-gray-300 w-20 text-center">No vigente</span>
                   )}
-                  <button onClick={() => handleToggleActivaDeuda(d.id, d.activo)} className="text-purple-600 hover:underline">
-                    {d.activo ? "Deshabilitar" : "Reactivar"}
+                  <button
+                    onClick={() => handleToggleActivaDeuda(d.id, d.activo)}
+                    title={d.activo ? "Deshabilitar" : "Reactivar"}
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    <IconoDesactivar />
                   </button>
-                  <button onClick={() => handleEliminarDeudaConfig(d.id)} className="text-red-500 hover:underline">
-                    Eliminar
+                  <button onClick={() => handleEliminarDeudaConfig(d.id)} title="Eliminar" className="text-red-500 hover:text-red-700">
+                    <IconoEliminar />
                   </button>
                 </div>
               ))}

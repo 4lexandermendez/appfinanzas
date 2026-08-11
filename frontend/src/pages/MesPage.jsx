@@ -7,7 +7,7 @@ import { listarAhorros } from "../api/ahorros";
 import { listarGastosFijosMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
 import { listarTransacciones, actualizarTransaccion } from "../api/transacciones";
-import { obtenerNotas, guardarNotas } from "../api/presupuestoMensual";
+import { listarNotas, guardarNota, crearNota, eliminarNota } from "../api/presupuestoMensual";
 import { obtenerDetalleQuincenal, listarTracker } from "../api/tracker";
 import { listarDiasLibres } from "../api/diasLibres";
 import { hoyISO, hoyAnioMes } from "../utils/fecha";
@@ -205,14 +205,21 @@ export default function MesPage() {
   const [gastosFijos, setGastosFijos] = useState([]);
   const [deudas, setDeudas] = useState([]);
   const [transacciones, setTransacciones] = useState([]);
-  const [notas, setNotas] = useState("");
+  const [notas, setNotas] = useState([]);
+  const [notaActiva, setNotaActiva] = useState(0);
   const [notasGuardando, setNotasGuardando] = useState(false);
+  const [agregandoNota, setAgregandoNota] = useState(false);
   const [quincenal, setQuincenal] = useState(null);
   const [registrosTracker, setRegistrosTracker] = useState([]);
   const [diasLibres, setDiasLibres] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
+    // StrictMode (dev) monta este efecto dos veces; sin el guard de
+    // "cancelado", la corrida vieja puede resolver despues de la nueva y
+    // pisar estado que el usuario ya cambio en pantalla con la foto vieja
+    // del servidor.
+    let cancelado = false;
     setCargando(true);
     Promise.all([
       obtenerResumenMes(anio, mes),
@@ -221,29 +228,99 @@ export default function MesPage() {
       listarGastosFijosMensual(anio, mes),
       listarDeudasMensual(anio, mes),
       listarTransacciones(anio, mes),
-      obtenerNotas(anio, mes),
       obtenerDetalleQuincenal(anio, mes).catch(() => null),
       listarTracker(anio, mes),
       listarDiasLibres(anio, mes),
-    ]).then(([r, i, a, gf, d, t, n, q, rt, dl]) => {
+    ]).then(([r, i, a, gf, d, t, q, rt, dl]) => {
+      if (cancelado) return;
       setResumen(r);
       setIngresos(i);
       setAhorros(a);
       setGastosFijos(gf.gastosFijos);
       setDeudas(d);
       setTransacciones(t);
-      setNotas(n);
       setQuincenal(q);
       setRegistrosTracker(rt);
       setDiasLibres(dl);
       setCargando(false);
     });
+    return () => {
+      cancelado = true;
+    };
   }, [anio, mes]);
 
-  async function handleGuardarNotas() {
+  // Las notas se cargan aparte (no bloquean el resto de la pagina) porque
+  // agregarlas al Promise.all de arriba sumaba una consulta mas a la espera
+  // inicial y la pagina se sentia mas lenta para mostrar todo lo demas.
+  useEffect(() => {
+    let cancelado = false;
+    listarNotas(anio, mes).then((n) => {
+      if (cancelado) return;
+      setNotas(n);
+      setNotaActiva(0);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [anio, mes]);
+
+  function handleCambiarNota(indice, contenido) {
+    setNotas((prev) => prev.map((n, i) => (i === indice ? { ...n, contenido } : n)));
+  }
+
+  async function handleGuardarNotaActiva() {
+    const hoja = notas[notaActiva];
+    // Si todavia no se confirmo con el servidor (ver handleAgregarHojaNota
+    // mas abajo, "orden" nace en null), no hay donde guardar todavia — se
+    // guardara solo cuando el usuario vuelva a salir de esa pestaña.
+    if (!hoja || hoja.orden == null) return;
     setNotasGuardando(true);
-    await guardarNotas(anio, mes, notas);
+    const guardada = await guardarNota(anio, mes, hoja.orden, hoja.contenido);
+    setNotas((prev) => prev.map((n, i) => (i === notaActiva ? guardada : n)));
     setNotasGuardando(false);
+  }
+
+  async function handleAgregarHojaNota() {
+    // Solo una creacion a la vez: si se agregan dos pestañas seguidas antes
+    // de que la primera termine de confirmarse con el servidor, las dos
+    // peticiones pueden chocar y el servidor les asigna el numero de orden
+    // en el orden en que de casualidad terminan (no en el que se pidieron),
+    // mezclando el contenido de una pestaña con el numero de otra.
+    if (agregandoNota) return;
+    setAgregandoNota(true);
+    // Cambia de pestaña al toque (optimista) en vez de esperar la ida y
+    // vuelta al servidor — contra Railway eso tarda 2-3s, y sin esto el
+    // click se sentia como que no hizo nada. Se confirma en segundo plano
+    // y se reconcilia conservando lo que el usuario ya haya escrito
+    // mientras tanto.
+    const indiceNuevo = notas.length;
+    setNotas((prev) => [...prev, { id: null, orden: null, contenido: "" }]);
+    setNotaActiva(indiceNuevo);
+    const nueva = await crearNota(anio, mes);
+    let contenidoEscrito = "";
+    setNotas((prev) =>
+      prev.map((n, i) => {
+        if (i !== indiceNuevo) return n;
+        contenidoEscrito = n.contenido;
+        return { ...nueva, contenido: n.contenido };
+      })
+    );
+    // Mientras "orden" era null (antes de esta confirmacion), el guardado
+    // automatico al salir del campo se saltaba (no habia donde guardar
+    // todavia) — si el usuario ya alcanzo a escribir algo en ese lapso, se
+    // guarda ahora que ya se sabe el orden real, para no perderlo.
+    if (contenidoEscrito) {
+      await guardarNota(anio, mes, nueva.orden, contenidoEscrito);
+    }
+    setAgregandoNota(false);
+  }
+
+  async function handleEliminarHojaNota(indice) {
+    const hoja = notas[indice];
+    if (!hoja?.id || notas.length <= 1) return;
+    await eliminarNota(hoja.id);
+    setNotas((prev) => prev.filter((_, i) => i !== indice));
+    setNotaActiva((prev) => (prev >= indice ? Math.max(0, prev - 1) : prev));
   }
 
   async function handleGuardarNotaTransaccion(id, notaNueva) {
@@ -389,11 +466,50 @@ export default function MesPage() {
           ]}
         />
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Notas</h2>
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-700 mr-1">Notas</h2>
+            {notas.map((n, i) => (
+              <div key={n.id ?? `nueva-${i}`} className="flex items-stretch rounded overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setNotaActiva(i)}
+                  className={`text-xs px-2 py-1 ${
+                    i === notaActiva ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-purple-100"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+                {notas.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleEliminarHojaNota(i)}
+                    title="Eliminar esta hoja"
+                    className={`text-xs px-1.5 ${
+                      i === notaActiva
+                        ? "bg-purple-600 text-purple-200 hover:text-white"
+                        : "bg-gray-100 text-gray-400 hover:text-red-500"
+                    }`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleAgregarHojaNota}
+              disabled={agregandoNota}
+              title="Agregar otra hoja de notas"
+              className="text-xs rounded px-2 py-1 bg-gray-100 text-gray-600 hover:bg-purple-100 font-bold disabled:opacity-50"
+            >
+              +
+            </button>
+          </div>
           <textarea
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            onBlur={handleGuardarNotas}
+            key={notas[notaActiva]?.id ?? notaActiva}
+            value={notas[notaActiva]?.contenido ?? ""}
+            onChange={(e) => handleCambiarNota(notaActiva, e.target.value)}
+            onBlur={handleGuardarNotaActiva}
             rows={4}
             placeholder="Escribí tus notas acá"
             className="w-full border border-gray-300 rounded px-3 py-2 text-sm"

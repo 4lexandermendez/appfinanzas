@@ -54,9 +54,25 @@ model PresupuestoMensual {
   gastosFijosMes         GastoFijoMensual[]
   deudasMes              DeudaMensual[]
   categoriasVariablesMes CategoriaVariableMensual[]
+  notasHojas             NotaPresupuesto[]
 
   @@unique([usuarioId, anio, mes])
   @@map("presupuesto_mensual")
+}
+
+// Hojas de notas tipo pestañas (1, 2, 3...) dentro de un mes — reemplaza el
+// campo "notas" de texto único de arriba, que se deja sin usar para no
+// perder lo que ya habia escrito ahi (se migra sola, ver notaController).
+model NotaPresupuesto {
+  id            Int     @id @default(autoincrement())
+  presupuestoId Int     @map("presupuesto_id")
+  orden         Int
+  contenido     String? @db.Text
+
+  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+
+  @@unique([presupuestoId, orden])
+  @@map("notas_presupuesto")
 }
 
 // ============================================================

@@ -98,7 +98,7 @@ async function listarMensual(req, res) {
       // sugiere el saldo pendiente actual (lo que falta de pagar) para que
       // el mes siguiente ya traiga automaticamente lo que quedo debiendo,
       // en vez de arrancar vacio cada vez.
-      montoEstimado: registro?.montoEstimado ?? Number(c.saldoActual),
+      montoEstimado: Number(registro?.montoEstimado ?? c.saldoActual),
       montoReal: registro?.montoReal ?? null,
       actual: c.saldoActual,
     };

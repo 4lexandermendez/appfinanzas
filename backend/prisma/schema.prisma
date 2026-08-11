@@ -115,9 +115,28 @@ model GastoFijoMensual {
   gastoFijoConfig   GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
   tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
   movimientoTarjeta MovimientoTarjeta?
+  aportesExternos   AporteExterno[]
 
   @@unique([presupuestoId, gastoFijoConfigId])
   @@map("gastos_fijos_mensual")
+}
+
+// Parte de un gasto (variable o fijo) que en realidad puso otra persona
+// (te lo transfirió, te dio efectivo, etc.) — el monto total del gasto
+// sigue siendo el que se cobró de verdad (ej. en la tarjeta), pero estos
+// aportes se restan antes de contar contra el presupuesto/"Sin usar", ya
+// que esa parte no salió de tu bolsillo. Puede haber varios (ej. un gasto
+// dividido entre 3 personas), por eso es una lista y no un solo campo.
+model AporteExterno {
+  id                 Int     @id @default(autoincrement())
+  transaccionId      Int?    @map("transaccion_id")
+  gastoFijoMensualId Int?    @map("gasto_fijo_mensual_id")
+  monto              Decimal @db.Decimal(10, 2)
+
+  transaccion      Transaccion?      @relation(fields: [transaccionId], references: [id], onDelete: Cascade)
+  gastoFijoMensual GastoFijoMensual? @relation(fields: [gastoFijoMensualId], references: [id], onDelete: Cascade)
+
+  @@map("aportes_externos")
 }
 
 // ============================================================
@@ -210,6 +229,7 @@ model Transaccion {
   categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
   tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
   movimientoTarjeta MovimientoTarjeta?
+  aportesExternos   AporteExterno[]
 
   @@map("transacciones")
 }

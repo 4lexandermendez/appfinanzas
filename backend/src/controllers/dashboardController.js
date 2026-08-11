@@ -27,13 +27,18 @@ async function hoy(req, res) {
   const [transacciones, registrosTracker] = await Promise.all([
     prisma.transaccion.findMany({
       where: { presupuestoId: presupuesto.id, fecha: { gte: inicioDia, lt: finDia } },
+      include: { aportesExternos: true },
     }),
     prisma.trackerDiario.findMany({
       where: { presupuestoId: presupuesto.id, fecha: { gte: inicioDia, lt: finDia } },
     }),
   ]);
 
-  const totalTransacciones = redondear(transacciones.reduce((s, t) => s + Number(t.monto), 0));
+  // Los aportes externos (plata que puso otra persona) no cuentan como
+  // gastado por el usuario, aunque el registro sea por el monto completo.
+  const totalTransacciones = redondear(
+    transacciones.reduce((s, t) => s + Number(t.monto) - t.aportesExternos.reduce((sa, a) => sa + Number(a.monto), 0), 0)
+  );
   const totalTracker = redondear(registrosTracker.reduce((s, t) => s + Number(t.monto), 0));
 
   res.json({

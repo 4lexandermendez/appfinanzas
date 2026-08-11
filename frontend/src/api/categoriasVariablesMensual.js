@@ -9,3 +9,7 @@ export async function guardarEstimadoVariable({ categoriaId, anio, mes, montoEst
   const { data } = await client.put("/categorias-variables-mensual", { categoriaId, anio, mes, montoEstimado });
   return data.registro;
 }
+
+export async function quitarEstimadoVariable(categoriaId, anio, mes) {
+  await client.delete(`/categorias-variables-mensual/${categoriaId}`, { params: { anio, mes } });
+}

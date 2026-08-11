@@ -5,6 +5,10 @@ const { listarCategorias } = require("./categoriaService");
 const { calcularEstimadoMes } = require("./estimadoTrackerService");
 const { calcularResumenReal } = require("./resumenTrackerService");
 
+function sumaAportesExternos(item) {
+  return (item.aportesExternos || []).reduce((s, a) => s + Number(a.monto), 0);
+}
+
 // El schema (sección 5 de PLANIFICACION.md) no modela un "estimado" para
 // categorías variables genéricas. Transporte y Comida lo sacan del tracker
 // diario + Ajustes; el resto (Temu, Universidad, etc.) usa el estimado que
@@ -19,8 +23,12 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     await Promise.all([
       presupuesto ? prisma.ingreso.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       presupuesto ? prisma.ahorro.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-      presupuesto ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
-      presupuesto ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
+      presupuesto
+        ? prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id }, include: { aportesExternos: true } })
+        : [],
+      presupuesto
+        ? prisma.transaccion.findMany({ where: { presupuestoId: presupuesto.id }, include: { aportesExternos: true } })
+        : [],
       presupuesto ? prisma.categoriaVariableMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
       prisma.deudaConfig.findMany({ where: { usuarioId } }),
       presupuesto ? prisma.deudaMensual.findMany({ where: { presupuestoId: presupuesto.id } }) : [],
@@ -39,7 +47,12 @@ async function calcularResumenMes(usuarioId, anio, mes) {
   // este mes (fila en gastos_fijos_mensual, ver listarMensual).
   const gastosFijosResumen = {
     estimado: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoEstimado || 0), 0)),
-    real: redondear(gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0), 0)),
+    // Los aportes externos (plata que puso otra persona) se restan del
+    // Real: ese monto no salió de tu bolsillo aunque el gasto se haya
+    // registrado completo (ej. por el movimiento de tarjeta).
+    real: redondear(
+      gastosFijosMensual.reduce((s, g) => s + Number(g.montoReal || 0) - sumaAportesExternos(g), 0)
+    ),
   };
 
   // Una deuda ya saldada (saldoActual en 0) no tiene nada mas que pagar.
@@ -50,7 +63,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
     // pendiente actual como sugerencia (ver deudaController.listarMensual).
     estimado: redondear(
       deudasVigentes.reduce(
-        (s, d) => s + (deudasPorConfig.get(d.id)?.montoEstimado ?? Number(d.saldoActual)),
+        (s, d) => s + Number(deudasPorConfig.get(d.id)?.montoEstimado ?? d.saldoActual),
         0
       )
     ),
@@ -64,7 +77,7 @@ async function calcularResumenMes(usuarioId, anio, mes) {
   const realPorCategoria = new Map();
   for (const t of transacciones) {
     const previo = realPorCategoria.get(t.categoriaId) || 0;
-    realPorCategoria.set(t.categoriaId, previo + Number(t.monto));
+    realPorCategoria.set(t.categoriaId, previo + Number(t.monto) - sumaAportesExternos(t));
   }
   const estimadoManualPorCategoria = new Map(estimadosVariables.map((e) => [e.categoriaId, Number(e.montoEstimado)]));
 

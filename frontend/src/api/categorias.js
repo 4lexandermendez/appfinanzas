@@ -9,3 +9,7 @@ export async function crearCategoria(nombre) {
   const { data } = await client.post("/categorias", { nombre });
   return data.categoria;
 }
+
+export async function eliminarCategoria(id) {
+  await client.delete(`/categorias/${id}`);
+}

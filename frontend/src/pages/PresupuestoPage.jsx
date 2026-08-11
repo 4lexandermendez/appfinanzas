@@ -12,8 +12,8 @@ import {
 import {
   listarDeudasMensual, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
 } from "../api/deudas";
-import { listarEstimadoVariables, guardarEstimadoVariable } from "../api/categoriasVariablesMensual";
-import { crearCategoria } from "../api/categorias";
+import { listarEstimadoVariables, guardarEstimadoVariable, quitarEstimadoVariable } from "../api/categoriasVariablesMensual";
+import { crearCategoria, eliminarCategoria } from "../api/categorias";
 import { hoyAnioMes } from "../utils/fecha";
 import PromptModal from "../components/PromptModal";
 
@@ -241,6 +241,23 @@ export default function PresupuestoPage() {
     cargarTodo();
   }
 
+  // Quita solo el estimado de este mes (reversible, no toca la categoria
+  // ni sus transacciones de ningun mes) — es lo que hace el boton morado.
+  async function handleQuitarEstimadoVariable(categoriaId) {
+    await quitarEstimadoVariable(categoriaId, anio, mes);
+    cargarTodo();
+  }
+
+  // Eliminar la categoria completa (boton rojo) es destructivo: borra
+  // tambien las transacciones de TODOS los meses, por eso pide confirmar
+  // en dos pasos en vez de un solo click.
+  const [confirmandoEliminarCategoria, setConfirmandoEliminarCategoria] = useState(null);
+  async function handleEliminarCategoriaVariable(categoriaId) {
+    await eliminarCategoria(categoriaId);
+    setConfirmandoEliminarCategoria(null);
+    cargarTodo();
+  }
+
   if (cargando) {
     return <div className="p-6 text-center text-gray-500">Cargando presupuesto...</div>;
   }
@@ -445,6 +462,36 @@ export default function PresupuestoPage() {
                     value={`$${Number(c.montoReal || 0).toFixed(2)}`}
                     className="w-20 border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-500"
                   />
+                  {!c.esDefault && (
+                    confirmandoEliminarCategoria === c.categoriaId ? (
+                      <span className="flex items-center gap-1 text-xs shrink-0">
+                        <span className="text-gray-500">¿Seguro?</span>
+                        <button onClick={() => handleEliminarCategoriaVariable(c.categoriaId)} className="text-red-600 font-medium hover:underline">
+                          Sí
+                        </button>
+                        <button onClick={() => setConfirmandoEliminarCategoria(null)} className="text-gray-500 hover:underline">
+                          No
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleQuitarEstimadoVariable(c.categoriaId)}
+                          title="Quitar de este mes (no borra la categoría ni tus transacciones)"
+                          className="text-purple-600 hover:text-purple-800"
+                        >
+                          <IconoDesactivar />
+                        </button>
+                        <button
+                          onClick={() => setConfirmandoEliminarCategoria(c.categoriaId)}
+                          title="Eliminar la categoría (borra también el historial de todos los meses)"
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <IconoEliminar />
+                        </button>
+                      </>
+                    )
+                  )}
                 </div>
               ))}
               {estimadoVariables.length === 0 && (

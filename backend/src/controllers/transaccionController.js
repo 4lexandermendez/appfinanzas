@@ -21,6 +21,21 @@ async function validarTarjeta(usuarioId, tarjetaId) {
   return Boolean(tarjeta && tarjeta.usuarioId === usuarioId);
 }
 
+// Cada aporte externo es plata que puso otra persona (no el usuario) para
+// cubrir parte de este gasto — se resta del "Real" que cuenta contra el
+// presupuesto (ver resumenMensualService), pero el monto total del gasto
+// (y del movimiento de tarjeta, si aplica) sigue siendo el cobrado de
+// verdad. Devuelve null si algo no es valido.
+function parsearAportesExternos(aportesExternos, montoTotal) {
+  if (aportesExternos === undefined) return [];
+  if (!Array.isArray(aportesExternos)) return null;
+  const montos = aportesExternos.map((a) => Number(a));
+  if (montos.some((m) => !Number.isFinite(m) || m <= 0)) return null;
+  const suma = montos.reduce((s, m) => s + m, 0);
+  if (suma > montoTotal) return null;
+  return montos;
+}
+
 async function listar(req, res) {
   const anio = Number(req.query.anio);
   const mes = Number(req.query.mes);
@@ -39,7 +54,7 @@ async function listar(req, res) {
 
   const transacciones = await prisma.transaccion.findMany({
     where: { presupuestoId: presupuesto.id },
-    include: { categoria: true },
+    include: { categoria: true, aportesExternos: true },
     orderBy: { fecha: "desc" },
   });
 
@@ -47,7 +62,7 @@ async function listar(req, res) {
 }
 
 async function crear(req, res) {
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos } = req.body;
 
   if (!categoriaId || monto === undefined || !fecha) {
     return res.status(400).json({ error: "categoriaId, monto y fecha son requeridos" });
@@ -55,6 +70,10 @@ async function crear(req, res) {
   const montoNum = Number(monto);
   if (!Number.isFinite(montoNum) || montoNum <= 0) {
     return res.status(400).json({ error: "monto debe ser un número mayor a 0" });
+  }
+  const aportesNum = parsearAportesExternos(aportesExternos, montoNum);
+  if (aportesNum === null) {
+    return res.status(400).json({ error: "aportesExternos debe ser una lista de montos válidos que no superen el monto total" });
   }
   const fechaParsed = parseFecha(fecha);
   if (!fechaParsed) {
@@ -102,6 +121,12 @@ async function crear(req, res) {
       include: { categoria: true },
     });
 
+    if (aportesNum.length > 0) {
+      await tx.aporteExterno.createMany({
+        data: aportesNum.map((monto) => ({ transaccionId: creada.id, monto })),
+      });
+    }
+
     if (fuenteFinal === "TARJETA" && creada.tarjetaId) {
       await tx.movimientoTarjeta.create({
         data: {
@@ -118,7 +143,7 @@ async function crear(req, res) {
       });
     }
 
-    return creada;
+    return tx.transaccion.findUnique({ where: { id: creada.id }, include: { categoria: true, aportesExternos: true } });
   });
 
   res.status(201).json({ transaccion });
@@ -134,7 +159,7 @@ async function actualizar(req, res) {
     return res.status(404).json({ error: "Transacción no encontrada" });
   }
 
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos } = req.body;
   const data = {};
 
   if (categoriaId !== undefined) {
@@ -151,6 +176,12 @@ async function actualizar(req, res) {
       return res.status(400).json({ error: "monto debe ser un número mayor a 0" });
     }
     data.monto = montoNum;
+  }
+
+  const montoParaAportes = data.monto ?? Number(existente.monto);
+  const aportesNum = parsearAportesExternos(aportesExternos, montoParaAportes);
+  if (aportesNum === null) {
+    return res.status(400).json({ error: "aportesExternos debe ser una lista de montos válidos que no superen el monto total" });
   }
 
   let presupuestoId;
@@ -199,6 +230,15 @@ async function actualizar(req, res) {
   const transaccion = await prisma.$transaction(async (tx) => {
     const actualizada = await tx.transaccion.update({ where: { id }, data, include: { categoria: true } });
 
+    if (aportesExternos !== undefined) {
+      await tx.aporteExterno.deleteMany({ where: { transaccionId: id } });
+      if (aportesNum.length > 0) {
+        await tx.aporteExterno.createMany({
+          data: aportesNum.map((monto) => ({ transaccionId: id, monto })),
+        });
+      }
+    }
+
     if (existente.movimientoTarjeta) {
       const movimientoData = {};
       if (data.monto !== undefined) movimientoData.monto = data.monto;
@@ -215,7 +255,7 @@ async function actualizar(req, res) {
       }
     }
 
-    return actualizada;
+    return tx.transaccion.findUnique({ where: { id: actualizada.id }, include: { categoria: true, aportesExternos: true } });
   });
 
   res.json({ transaccion });

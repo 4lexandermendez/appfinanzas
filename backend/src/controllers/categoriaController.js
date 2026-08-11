@@ -25,4 +25,24 @@ async function crear(req, res) {
   res.status(201).json({ categoria });
 }
 
-module.exports = { listar, crear };
+// Borra la categoria entera, junto con TODO su historial: las transacciones
+// de todos los meses (cascade) y los estimados mensuales guardados. Los
+// movimientos de tarjeta ya registrados por esas transacciones NO se
+// borran (quedan sin vincular, ver ON DELETE SET NULL), asi que el saldo
+// real de la tarjeta no se ve afectado. Comida/Transporte no se pueden
+// borrar porque son necesarias para el Tracker.
+async function eliminar(req, res) {
+  const id = Number(req.params.id);
+  const categoria = await prisma.categoriaVariable.findUnique({ where: { id } });
+  if (!categoria || categoria.usuarioId !== req.usuarioId) {
+    return res.status(404).json({ error: "Categoría no encontrada" });
+  }
+  if (categoria.esDefault) {
+    return res.status(400).json({ error: "Comida y Transporte no se pueden eliminar" });
+  }
+
+  await prisma.categoriaVariable.delete({ where: { id } });
+  res.status(204).send();
+}
+
+module.exports = { listar, crear, eliminar };

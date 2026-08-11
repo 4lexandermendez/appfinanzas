@@ -124,6 +124,21 @@ async function listarMensual(req, res) {
 const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA", "CUENTA_BANCO", "EXTERNO"];
 const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL", "AGRICOLA_SECUNDARIA"];
 
+// Cada aporte externo es plata que puso otra persona (no el usuario) para
+// cubrir parte de este gasto — se resta del "Real" que cuenta contra el
+// presupuesto, pero el monto real total (y el movimiento de tarjeta, si
+// aplica) sigue siendo el pagado de verdad. Devuelve null si algo no es
+// valido.
+function parsearAportesExternos(aportesExternos, montoTotal) {
+  if (aportesExternos === undefined) return [];
+  if (!Array.isArray(aportesExternos)) return null;
+  const montos = aportesExternos.map((a) => Number(a));
+  if (montos.some((m) => !Number.isFinite(m) || m <= 0)) return null;
+  const suma = montos.reduce((s, m) => s + m, 0);
+  if (suma > montoTotal) return null;
+  return montos;
+}
+
 // Se usa tanto para "seleccionar" un gasto fijo sugerido en el mes (mandando
 // montoEstimado) como para marcar el Real ya pagado. El montoEstimado, si
 // viene, también actualiza la config para que sea el monto sugerido la
@@ -137,7 +152,7 @@ const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL",
 // se pasa de tarjeta a efectivo, el movimiento se borra y se le devuelve el
 // monto a la tarjeta.
 async function guardarMensual(req, res) {
-  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta } = req.body;
+  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos } = req.body;
 
   if (!gastoFijoConfigId || !anio || !mes) {
     return res.status(400).json({ error: "gastoFijoConfigId, anio y mes son requeridos" });
@@ -182,8 +197,14 @@ async function guardarMensual(req, res) {
 
   const existente = await prisma.gastoFijoMensual.findUnique({
     where: { presupuestoId_gastoFijoConfigId: { presupuestoId: presupuesto.id, gastoFijoConfigId: config.id } },
-    include: { movimientoTarjeta: true },
+    include: { movimientoTarjeta: true, aportesExternos: true },
   });
+
+  const montoRealFinal = realNum ?? Number(existente?.montoReal || 0);
+  const aportesNum = parsearAportesExternos(aportesExternos, montoRealFinal);
+  if (aportesNum === null) {
+    return res.status(400).json({ error: "aportesExternos debe ser una lista de montos válidos que no superen el montoReal" });
+  }
 
   const data = {};
   if (estimadoNum !== null) data.montoEstimado = estimadoNum;
@@ -201,6 +222,15 @@ async function guardarMensual(req, res) {
 
     if (estimadoNum !== null) {
       await tx.gastoFijoConfig.update({ where: { id: config.id }, data: { montoEstimado: estimadoNum } });
+    }
+
+    if (aportesExternos !== undefined) {
+      await tx.aporteExterno.deleteMany({ where: { gastoFijoMensualId: guardado.id } });
+      if (aportesNum.length > 0) {
+        await tx.aporteExterno.createMany({
+          data: aportesNum.map((monto) => ({ gastoFijoMensualId: guardado.id, monto })),
+        });
+      }
     }
 
     const movimientoPrevio = existente?.movimientoTarjeta;
@@ -243,7 +273,7 @@ async function guardarMensual(req, res) {
       });
     }
 
-    return guardado;
+    return tx.gastoFijoMensual.findUnique({ where: { id: guardado.id }, include: { aportesExternos: true } });
   });
 
   res.json({ registro });

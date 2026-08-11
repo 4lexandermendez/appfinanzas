@@ -59,6 +59,49 @@ function mesAnterior(anio, mes) {
   return mes === 1 ? { anio: anio - 1, mes: 12 } : { anio, mes: mes - 1 };
 }
 
+// Lista de "aportes externos" (plata que puso otra persona para cubrir
+// parte de este gasto, ej. el cine dividido entre varios) — el monto
+// principal del formulario sigue siendo el total cobrado de verdad; esto
+// solo se resta despues contra el presupuesto. El "+" agrega una fila mas
+// por cada persona que aporto.
+function AportesExternos({ aportes, onChange }) {
+  function agregar() {
+    onChange([...aportes, ""]);
+  }
+  function actualizar(i, valor) {
+    onChange(aportes.map((a, idx) => (idx === i ? valor : a)));
+  }
+  function quitar(i) {
+    onChange(aportes.filter((_, idx) => idx !== i));
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500">Externo (plata de otra persona, opcional)</span>
+        <button type="button" onClick={agregar} className="text-xs text-purple-600 hover:underline font-bold">
+          + agregar
+        </button>
+      </div>
+      {aportes.map((a, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={a}
+            onChange={(e) => actualizar(i, e.target.value)}
+            placeholder="Monto externo"
+            className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+          />
+          <button type="button" onClick={() => quitar(i)} className="text-red-500 hover:text-red-700 text-sm" title="Quitar">
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function RegistroRapidoPage() {
   const hoyReal = useMemo(() => hoyISO(), []);
   // Todo el mes (1 al 28/29/30/31, segun corresponda) para poder registrar
@@ -89,6 +132,7 @@ export default function RegistroRapidoPage() {
   const [categoriaId, setCategoriaId] = useState(null);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
   const [monto, setMonto] = useState("");
+  const [aportesExternos, setAportesExternos] = useState([]);
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
   const [tarjetas, setTarjetas] = useState([]);
@@ -100,6 +144,7 @@ export default function RegistroRapidoPage() {
   const [gastosFijosMesAnterior, setGastosFijosMesAnterior] = useState([]);
   const [gastoFijoId, setGastoFijoId] = useState("");
   const [montoFijo, setMontoFijo] = useState("");
+  const [aportesExternosFijo, setAportesExternosFijo] = useState([]);
   const [enviandoFijo, setEnviandoFijo] = useState(false);
   const [fuentePagoFijo, setFuentePagoFijo] = useState("EFECTIVO");
   const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
@@ -299,6 +344,11 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige de cuál cuenta pagaste");
       return;
     }
+    const sumaExternos = aportesExternos.reduce((s, a) => s + (Number(a) || 0), 0);
+    if (sumaExternos > Number(monto)) {
+      setMensaje("Lo externo no puede ser más que el monto total");
+      return;
+    }
     setEnviandoForm(true);
     try {
       const idFinal = esNueva ? (await crearCategoria(nuevaCategoriaNombre.trim())).id : Number(categoriaId);
@@ -309,8 +359,10 @@ export default function RegistroRapidoPage() {
         fuente: fuentePago,
         tarjetaId: fuentePago === "TARJETA" ? Number(tarjetaId) : undefined,
         cuenta: fuentePago === "CUENTA_BANCO" ? cuenta : undefined,
+        aportesExternos: aportesExternos.filter((a) => a !== "").map(Number),
       });
       setMonto("");
+      setAportesExternos([]);
       setCategoriaId("");
       setNuevaCategoriaNombre("");
       setFuentePago("EFECTIVO");
@@ -342,6 +394,11 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige de cuál cuenta pagaste");
       return;
     }
+    const sumaExternosFijo = aportesExternosFijo.reduce((s, a) => s + (Number(a) || 0), 0);
+    if (sumaExternosFijo > Number(montoFijo)) {
+      setMensaje("Lo externo no puede ser más que el monto total");
+      return;
+    }
     setEnviandoFijo(true);
     try {
       const [gastoFijoConfigId, anio, mes] = gastoFijoId.split("|").map(Number);
@@ -353,9 +410,11 @@ export default function RegistroRapidoPage() {
         fuente: fuentePagoFijo,
         tarjetaId: fuentePagoFijo === "TARJETA" ? Number(tarjetaIdFijo) : undefined,
         cuenta: fuentePagoFijo === "CUENTA_BANCO" ? cuentaFijo : undefined,
+        aportesExternos: aportesExternosFijo.filter((a) => a !== "").map(Number),
       });
       setGastoFijoId("");
       setMontoFijo("");
+      setAportesExternosFijo([]);
       setFuentePagoFijo("EFECTIVO");
       setTarjetaIdFijo("");
       setCuentaFijo("");
@@ -567,6 +626,8 @@ export default function RegistroRapidoPage() {
             />
           </div>
 
+          <AportesExternos aportes={aportesExternos} onChange={setAportesExternos} />
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
             <select
@@ -577,7 +638,6 @@ export default function RegistroRapidoPage() {
               <option value="EFECTIVO">Efectivo</option>
               <option value="TARJETA">Tarjeta de crédito</option>
               <option value="CUENTA_BANCO">Cuenta de banco</option>
-              <option value="EXTERNO">Externo (me dieron ese dinero)</option>
             </select>
             {fuentePago === "TARJETA" && (
               <select
@@ -657,6 +717,8 @@ export default function RegistroRapidoPage() {
             />
           </div>
 
+          <AportesExternos aportes={aportesExternosFijo} onChange={setAportesExternosFijo} />
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
             <select
@@ -667,7 +729,6 @@ export default function RegistroRapidoPage() {
               <option value="EFECTIVO">Efectivo</option>
               <option value="TARJETA">Tarjeta de crédito</option>
               <option value="CUENTA_BANCO">Cuenta de banco</option>
-              <option value="EXTERNO">Externo (me dieron ese dinero)</option>
             </select>
             {fuentePagoFijo === "TARJETA" && (
               <select

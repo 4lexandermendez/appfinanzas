@@ -328,14 +328,26 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   const pagoUrgente = info.diasParaPago <= 3;
   const hayDeuda = Number(tarjeta.saldoActual) > 0;
 
-  // Una vez pagado el ciclo vencido, sus movimientos ya no se muestran en
-  // la lista (no se borran, solo se ocultan) — asi el historial visible
-  // arranca limpio con el ciclo nuevo. "Ver historial completo" los trae
-  // de vuelta sin tener que borrar nada.
+  // Una vez pagado (hay un movimiento de pago, monto negativo), ese pago y
+  // todo lo anterior ya no se muestran en la lista (no se borran, solo se
+  // ocultan) — asi el historial visible arranca limpio con lo nuevo. No se
+  // puede usar "saldoActual > 0" para decidir esto porque apenas se
+  // registra una compra nueva el saldo vuelve a subir, aunque el ciclo
+  // anterior ya este pagado. Se compara por id (orden real de creacion) en
+  // vez de fecha, porque un pago y una compra nueva el mismo dia tendrian
+  // la misma fecha pero deben poder distinguirse igual. "Ver historial
+  // completo" trae todo de vuelta sin tener que borrar nada.
+  const idUltimoPago = movimientos
+    .filter((m) => Number(m.monto) < 0)
+    .reduce((max, m) => Math.max(max, m.id), 0);
+  // Se calcula aparte de movimientosVisibles (que ya depende de
+  // verHistorialCompleto) para que el boton de mostrar/ocultar no se
+  // desaparezca a si mismo apenas se activa el toggle.
+  const hayHistorialOculto = idUltimoPago > 0 && movimientos.some((m) => m.id <= idUltimoPago);
   const movimientosVisibles =
-    verHistorialCompleto || hayDeuda
+    verHistorialCompleto || !idUltimoPago
       ? movimientos
-      : movimientos.filter((m) => m.fecha.slice(0, 10) > info.ciclo.corteVencido);
+      : movimientos.filter((m) => m.id > idUltimoPago);
 
   return (
     <div className="bg-white rounded-2xl shadow overflow-hidden">
@@ -408,9 +420,9 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
                 </button>
               </div>
             ))}
-            {movimientosVisibles.length === 0 && <p className="text-sm text-gray-400">Sin movimientos en el ciclo actual</p>}
+            {movimientosVisibles.length === 0 && <p className="text-sm text-gray-400">Sin movimientos desde el último pago</p>}
           </div>
-          {!hayDeuda && movimientos.length > movimientosVisibles.length && (
+          {hayHistorialOculto && (
             <button
               onClick={() => setVerHistorialCompleto((v) => !v)}
               className="text-purple-600 text-xs mt-2 hover:underline"

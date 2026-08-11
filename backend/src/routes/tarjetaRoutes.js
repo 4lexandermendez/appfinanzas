@@ -14,6 +14,7 @@ router.post("/:id/pagar", pagar);
 
 router.get("/:tarjetaId/movimientos", movimientos.listar);
 router.post("/:tarjetaId/movimientos", movimientos.crear);
+router.patch("/:tarjetaId/movimientos/:id", movimientos.actualizar);
 router.delete("/:tarjetaId/movimientos/:id", movimientos.eliminar);
 
 module.exports = router;

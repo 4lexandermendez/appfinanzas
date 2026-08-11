@@ -5,11 +5,11 @@ import {
 } from "../api/gruposCuenta";
 import {
   crearTarjeta, eliminarTarjeta, pagarTarjeta,
-  listarMovimientos, crearMovimiento, eliminarMovimiento,
+  listarMovimientos, crearMovimiento, actualizarMovimiento, eliminarMovimiento,
 } from "../api/tarjetas";
 import {
   crearTarjetaDebito, eliminarTarjetaDebito,
-  listarMovimientosCuenta, crearMovimientoCuenta, eliminarMovimientoCuenta,
+  listarMovimientosCuenta, crearMovimientoCuenta, actualizarMovimientoCuenta, eliminarMovimientoCuenta,
   transferirEntreCuentas,
 } from "../api/cuentasBancarias";
 import { hoyISO } from "../utils/fecha";
@@ -308,6 +308,12 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
     await cargarMovimientos();
     onRefrescar();
   }
+  // Solo un check visual (ej. "ya lo revisé") — no afecta ningun calculo,
+  // por eso se actualiza el estado local sin recargar todo.
+  async function handleToggleRevisado(id, revisado) {
+    setMovimientos((prev) => prev.map((m) => (m.id === id ? { ...m, revisado } : m)));
+    await actualizarMovimiento(tarjeta.id, id, revisado);
+  }
 
   const [pagando, setPagando] = useState(false);
   async function handlePagar() {
@@ -410,6 +416,13 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
           <div className="space-y-1">
             {movimientosVisibles.map((m) => (
               <div key={m.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!m.revisado}
+                  onChange={(e) => handleToggleRevisado(m.id, e.target.checked)}
+                  title="Marcar (solo visual, no afecta nada)"
+                  className="shrink-0"
+                />
                 <span className="text-gray-400 w-20 shrink-0">{m.fecha.slice(0, 10)}</span>
                 <span className={`w-16 shrink-0 ${Number(m.monto) < 0 ? "text-green-600" : "text-gray-800"}`}>
                   ${Math.abs(Number(m.monto)).toFixed(2)}
@@ -566,6 +579,12 @@ function CuentaBancariaRow({
     await cargarMovimientos();
     onRefrescar();
   }
+  // Solo un check visual (ej. "ya lo revisé") — no afecta ningun calculo,
+  // por eso se actualiza el estado local sin recargar todo.
+  async function handleToggleRevisado(id, revisado) {
+    setMovimientos((prev) => prev.map((m) => (m.id === id ? { ...m, revisado } : m)));
+    await actualizarMovimientoCuenta(cuenta.id, id, revisado);
+  }
   async function handleTransferir(datos) {
     await transferirEntreCuentas(cuenta.id, datos);
     await cargarMovimientos();
@@ -603,6 +622,13 @@ function CuentaBancariaRow({
         <div className="mt-2 border-t border-gray-200 pt-2 space-y-1">
           {movimientos.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!!m.revisado}
+                onChange={(e) => handleToggleRevisado(m.id, e.target.checked)}
+                title="Marcar (solo visual, no afecta nada)"
+                className="shrink-0"
+              />
               <span className="text-gray-400 w-20 shrink-0">{m.fecha.slice(0, 10)}</span>
               <span className={`w-16 shrink-0 ${Number(m.monto) < 0 ? "text-red-600" : "text-green-600"}`}>
                 ${Math.abs(Number(m.monto)).toFixed(2)}

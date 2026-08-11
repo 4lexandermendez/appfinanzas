@@ -15,6 +15,7 @@ const {
   eliminarTarjetaDebito,
   listarMovimientos,
   crearMovimiento,
+  actualizarMovimiento,
   eliminarMovimiento,
   transferir,
 } = require("../controllers/cuentaBancariaController");
@@ -36,6 +37,7 @@ router.post("/cuentas/:cuentaId/tarjeta-debito", crearTarjetaDebito);
 router.delete("/cuentas/:cuentaId/tarjeta-debito", eliminarTarjetaDebito);
 router.get("/cuentas/:cuentaId/movimientos", listarMovimientos);
 router.post("/cuentas/:cuentaId/movimientos", crearMovimiento);
+router.patch("/cuentas/:cuentaId/movimientos/:id", actualizarMovimiento);
 router.delete("/cuentas/:cuentaId/movimientos/:id", eliminarMovimiento);
 router.post("/cuentas/:cuentaId/transferencias", transferir);
 

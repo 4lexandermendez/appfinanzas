@@ -357,6 +357,8 @@ model MovimientoCuenta {
   monto       Decimal  @db.Decimal(10, 2)
   fecha       DateTime @db.Date
   descripcion String?
+  // Solo un check visual (ej. "ya lo revisé") — no afecta ningún cálculo.
+  revisado    Boolean  @default(false)
 
   cuenta CuentaBancaria @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
 
@@ -397,6 +399,8 @@ model MovimientoTarjeta {
   descripcion        String?
   transaccionId      Int?     @unique @map("transaccion_id")
   gastoFijoMensualId Int?     @unique @map("gasto_fijo_mensual_id")
+  // Solo un check visual (ej. "ya lo revisé") — no afecta ningún cálculo.
+  revisado           Boolean  @default(false)
 
   tarjeta          TarjetaCredito    @relation(fields: [tarjetaId], references: [id], onDelete: Cascade)
   transaccion      Transaccion?      @relation(fields: [transaccionId], references: [id])

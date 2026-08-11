@@ -78,6 +78,29 @@ async function crearMovimiento(req, res) {
   res.status(201).json({ movimiento });
 }
 
+async function actualizarMovimiento(req, res) {
+  const cuentaId = Number(req.params.cuentaId);
+  const id = Number(req.params.id);
+  const cuenta = await obtenerCuentaPropia(cuentaId, req.usuarioId);
+  if (!cuenta) return res.status(404).json({ error: "Cuenta no encontrada" });
+
+  const movimiento = await prisma.movimientoCuenta.findUnique({ where: { id } });
+  if (!movimiento || movimiento.cuentaId !== cuentaId) {
+    return res.status(404).json({ error: "Movimiento no encontrado" });
+  }
+
+  if (typeof req.body.revisado !== "boolean") {
+    return res.status(400).json({ error: "revisado debe ser true o false" });
+  }
+
+  const actualizado = await prisma.movimientoCuenta.update({
+    where: { id },
+    data: { revisado: req.body.revisado },
+  });
+
+  res.json({ movimiento: actualizado });
+}
+
 async function eliminarMovimiento(req, res) {
   const cuentaId = Number(req.params.cuentaId);
   const id = Number(req.params.id);
@@ -159,6 +182,7 @@ module.exports = {
   eliminarTarjetaDebito,
   listarMovimientos,
   crearMovimiento,
+  actualizarMovimiento,
   eliminarMovimiento,
   transferir,
 };

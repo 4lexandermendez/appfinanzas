@@ -47,6 +47,29 @@ async function crear(req, res) {
   res.status(201).json({ movimiento });
 }
 
+async function actualizar(req, res) {
+  const tarjetaId = Number(req.params.tarjetaId);
+  const id = Number(req.params.id);
+  const tarjeta = await obtenerTarjetaPropia(tarjetaId, req.usuarioId);
+  if (!tarjeta) return res.status(404).json({ error: "Tarjeta no encontrada" });
+
+  const movimiento = await prisma.movimientoTarjeta.findUnique({ where: { id } });
+  if (!movimiento || movimiento.tarjetaId !== tarjetaId) {
+    return res.status(404).json({ error: "Movimiento no encontrado" });
+  }
+
+  if (typeof req.body.revisado !== "boolean") {
+    return res.status(400).json({ error: "revisado debe ser true o false" });
+  }
+
+  const actualizado = await prisma.movimientoTarjeta.update({
+    where: { id },
+    data: { revisado: req.body.revisado },
+  });
+
+  res.json({ movimiento: actualizado });
+}
+
 async function eliminar(req, res) {
   const tarjetaId = Number(req.params.tarjetaId);
   const id = Number(req.params.id);
@@ -69,4 +92,4 @@ async function eliminar(req, res) {
   res.status(204).send();
 }
 
-module.exports = { listar, crear, eliminar };
+module.exports = { listar, crear, actualizar, eliminar };

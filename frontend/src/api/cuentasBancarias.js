@@ -19,6 +19,11 @@ export async function crearMovimientoCuenta(cuentaId, datos) {
   return data.movimiento;
 }
 
+export async function actualizarMovimientoCuenta(cuentaId, id, revisado) {
+  const { data } = await client.patch(`/grupos-cuenta/cuentas/${cuentaId}/movimientos/${id}`, { revisado });
+  return data.movimiento;
+}
+
 export async function eliminarMovimientoCuenta(cuentaId, id) {
   await client.delete(`/grupos-cuenta/cuentas/${cuentaId}/movimientos/${id}`);
 }

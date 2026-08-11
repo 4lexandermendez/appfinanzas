@@ -34,6 +34,11 @@ export async function crearMovimiento(tarjetaId, datos) {
   return data.movimiento;
 }
 
+export async function actualizarMovimiento(tarjetaId, id, revisado) {
+  const { data } = await client.patch(`/tarjetas/${tarjetaId}/movimientos/${id}`, { revisado });
+  return data.movimiento;
+}
+
 export async function eliminarMovimiento(tarjetaId, id) {
   await client.delete(`/tarjetas/${tarjetaId}/movimientos/${id}`);
 }

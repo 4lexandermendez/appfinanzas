@@ -101,4 +101,20 @@ function calcularInfoTarjeta(tarjeta) {
   };
 }
 
-module.exports = { calcularInfoTarjeta, calcularCicloTarjeta };
+// Cuanto hay que pagar del ciclo YA CORTADO especificamente (no lo que se
+// esta acumulando en el ciclo nuevo, todavia abierto) — solo cuenta lo
+// cargado hasta corteVencido y que no se haya pagado ya (id posterior al
+// ultimo pago). Es la misma cuenta que usa el aviso de Registro Rapido, y
+// tambien la que debe pagar el boton "Pagar saldo total" de Cuentas: pagar
+// de mas ahi estaria adelantando algo que ni siquiera vence todavia.
+function calcularMontoCicloVencido(movimientos, ciclo) {
+  const idUltimoPago = movimientos
+    .filter((m) => Number(m.monto) < 0)
+    .reduce((max, m) => Math.max(max, m.id), 0);
+  const monto = movimientos
+    .filter((m) => m.id > idUltimoPago && formatDateKey(m.fecha) <= ciclo.corteVencido)
+    .reduce((s, m) => s + Number(m.monto), 0);
+  return Math.round((monto + Number.EPSILON) * 100) / 100;
+}
+
+module.exports = { calcularInfoTarjeta, calcularCicloTarjeta, calcularMontoCicloVencido };

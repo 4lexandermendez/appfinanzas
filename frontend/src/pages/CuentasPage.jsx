@@ -332,7 +332,11 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   const { info } = tarjeta;
   const corteUrgente = info.diasParaCorte <= 3;
   const pagoUrgente = info.diasParaPago <= 3;
-  const hayDeuda = Number(tarjeta.saldoActual) > 0;
+  // Ojo: no es "saldoActual > 0" — eso incluiria compras del ciclo nuevo
+  // que todavia no vencen. Esto es especificamente si el ciclo YA CORTADO
+  // sigue con algo pendiente (lo unico que "Pagar saldo total" debe pagar,
+  // y lo unico que el calendario de abajo debe marcar como "por pagar").
+  const hayDeuda = info.montoCicloVencido > 0;
 
   // Una vez pagado (hay un movimiento de pago, monto negativo), ese pago y
   // todo lo anterior ya no se muestran en la lista (no se borran, solo se
@@ -372,9 +376,10 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
           <button
             onClick={handlePagar}
             disabled={pagando}
+            title="Solo paga el ciclo ya cortado — lo que ya compraste en el ciclo nuevo no vence todavía"
             className="mb-3 text-green-700 text-sm font-medium hover:underline disabled:opacity-50"
           >
-            {pagando ? "Pagando..." : "Pagar saldo total"}
+            {pagando ? "Pagando..." : `Pagar $${info.montoCicloVencido.toFixed(2)} (ciclo cortado)`}
           </button>
         )}
 

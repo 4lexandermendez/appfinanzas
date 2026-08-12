@@ -7,7 +7,7 @@ import { listarEstimadoVariables } from "../api/categoriasVariablesMensual";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
-import { listarTarjetas } from "../api/tarjetas";
+import { listarTarjetas, obtenerResumenPago } from "../api/tarjetas";
 import { hoyISO } from "../utils/fecha";
 
 const NUEVA_CATEGORIA = "__nueva__";
@@ -28,6 +28,39 @@ const CONCEPTOS = [
 ];
 
 const NOMBRES_DIA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+// Iconos simples (no son el logo real, solo una forma que se distinga a
+// simple vista) para el aviso de pago pendiente de tarjeta.
+function IconoAgricola({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <rect x="2" y="4.5" width="20" height="3" rx="1.5" fill="#009845" />
+      <rect x="2" y="10.5" width="20" height="3" rx="1.5" fill="#009845" />
+      <rect x="2" y="16.5" width="20" height="3" rx="1.5" fill="#009845" />
+    </svg>
+  );
+}
+function IconoCuscatlan({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="10" fill="#EE1C25" />
+    </svg>
+  );
+}
+function IconoSiman({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <rect x="5" y="5" width="14" height="14" rx="2" fill="#7A1943" transform="rotate(45 12 12)" />
+    </svg>
+  );
+}
+function iconoParaTarjeta(nombre) {
+  const n = (nombre || "").toUpperCase();
+  if (n.includes("AGRICOLA") || n.includes("AGRÍCOLA")) return IconoAgricola;
+  if (n.includes("CUSCA") || n.includes("CUSCATLAN") || n.includes("CUSCATLÁN")) return IconoCuscatlan;
+  if (n.includes("SIMAN")) return IconoSiman;
+  return null;
+}
 
 function diaDelMes(fechaISO) {
   return new Date(`${fechaISO}T00:00:00Z`).getUTCDate();
@@ -102,6 +135,126 @@ function AportesExternos({ aportes, onChange }) {
   );
 }
 
+const GRADOS_POR_ITEM = 15; // cuanto "gira" el anillo por cada dia
+const RADIO_RUEDA = 95; // px — separacion horizontal maxima del centro
+const SENSIBILIDAD_ARRASTRE = GRADOS_POR_ITEM / 42; // px arrastrados -> grados
+
+// Selector de fecha tipo anillo/cilindro giratorio: se arrastra de
+// izquierda a derecha (nunca arriba/abajo), el dia al frente se ve grande
+// y nitido, y los que se alejan se van curvando de canto hasta esconderse
+// — no es un desvanecido plano, es la curvatura de un tubo.
+//
+// Ojo: la primera version usaba transform 3D real (perspective + rotateY +
+// preserve-3d), pero eso renderizaba mal (texto/fondo duplicado, tipo
+// fantasma) en al menos una laptop real — es un problema conocido de
+// compositing 3D en Chrome/Windows con ciertos GPU o escalas de pantalla.
+// Se reemplazo por la MISMA curva pero calculada a mano en 2D puro (seno
+// para la posicion horizontal, coseno para el achicado/foreshortening que
+// simula el giro), sin perspective/rotateY/preserve-3d — mismo efecto
+// visual, sin depender de compositing 3D que puede fallar.
+function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, tipoPorDia, diasConRegistro }) {
+  const indiceInicial = Math.max(0, dias.indexOf(fechaSeleccionada));
+  const anguloMax = (dias.length - 1) * GRADOS_POR_ITEM;
+  const [angulo, setAngulo] = useState(indiceInicial * GRADOS_POR_ITEM);
+  const anguloRef = useRef(angulo);
+  const arrastreRef = useRef(null); // { x, anguloInicial } | null
+
+  // Si la fecha seleccionada cambia desde afuera (click directo en un
+  // dia), el anillo se re-centra en esa fecha.
+  useEffect(() => {
+    const nuevo = Math.max(0, dias.indexOf(fechaSeleccionada)) * GRADOS_POR_ITEM;
+    anguloRef.current = nuevo;
+    setAngulo(nuevo);
+  }, [fechaSeleccionada, dias]);
+
+  function fijarAngulo(valor) {
+    const limitado = Math.max(0, Math.min(anguloMax, valor));
+    anguloRef.current = limitado;
+    setAngulo(limitado);
+  }
+
+  function handlePointerDown(e) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastreRef.current = { x: e.clientX, anguloInicial: anguloRef.current };
+  }
+  function handlePointerMove(e) {
+    if (!arrastreRef.current) return;
+    // Arrastrar a la izquierda gira el anillo hacia fechas mas adelante,
+    // igual que un scroll horizontal normal.
+    const dx = e.clientX - arrastreRef.current.x;
+    fijarAngulo(arrastreRef.current.anguloInicial - dx * SENSIBILIDAD_ARRASTRE);
+  }
+  function handlePointerUp() {
+    if (!arrastreRef.current) return;
+    arrastreRef.current = null;
+    const idx = Math.max(0, Math.min(dias.length - 1, Math.round(anguloRef.current / GRADOS_POR_ITEM)));
+    fijarAngulo(idx * GRADOS_POR_ITEM);
+    if (dias[idx] !== fechaSeleccionada) onSeleccionar(dias[idx]);
+  }
+
+  function handleClickDia(fecha, idx) {
+    fijarAngulo(idx * GRADOS_POR_ITEM);
+    onSeleccionar(fecha);
+  }
+
+  return (
+    <div
+      className="relative h-16 mt-4 select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {dias.map((f, i) => {
+        const anguloItem = i * GRADOS_POR_ITEM - angulo;
+        const anguloAbs = Math.abs(anguloItem);
+        if (anguloAbs > 90) return null; // ya esta de canto, no hace falta pintarlo
+
+        const seleccionado = f === fechaSeleccionada;
+        const esHoy = f === hoyReal;
+        const dow = diaSemana(f);
+        const tipo = tipoPorDia.get(f);
+        const finDeSemanaSinDatos = tipo
+          ? tipo === "DOMINGO" || tipo === "SABADO_NO_TOCA" || tipo === "LIBRE"
+          : (dow === 0 || dow === 6) && !diasConRegistro.has(f);
+
+        // Proyeccion de un punto girando en circulo, vista de frente: la
+        // posicion horizontal sigue un seno y el achicado (foreshortening
+        // de un objeto que se va de canto) sigue un coseno — es la misma
+        // curva que daria una rotacion 3D real, calculada a mano.
+        const rad = (anguloItem * Math.PI) / 180;
+        const offsetX = Math.sin(rad) * RADIO_RUEDA;
+        const escalaX = Math.max(0.06, Math.cos(rad));
+        const opacidad = Math.max(0, escalaX - 0.06);
+
+        return (
+          <button
+            key={f}
+            type="button"
+            onClick={() => handleClickDia(f, i)}
+            style={{
+              transform: `translate(${offsetX - 28}px, -50%) scaleX(${escalaX})`,
+              opacity: opacidad,
+              filter: `brightness(${0.55 + 0.45 * escalaX})`,
+              zIndex: Math.round(1000 - anguloAbs),
+            }}
+            className={`absolute left-1/2 top-1/2 flex flex-col items-center justify-center w-14 h-14 rounded-lg text-xs ${
+              seleccionado
+                ? "bg-purple-600 text-white"
+                : finDeSemanaSinDatos
+                  ? "bg-gray-50 text-gray-300"
+                  : "bg-gray-100 text-gray-600"
+            } ${esHoy && !seleccionado ? "ring-1 ring-purple-400" : ""}`}
+          >
+            <span>{NOMBRES_DIA[dow]}</span>
+            <span className="font-semibold text-sm">{diaDelMes(f)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function RegistroRapidoPage() {
   const hoyReal = useMemo(() => hoyISO(), []);
   // Todo el mes (1 al 28/29/30/31, segun corresponda) para poder registrar
@@ -115,12 +268,12 @@ export default function RegistroRapidoPage() {
     }
     return dias;
   }, [hoyReal]);
-  const botonHoyRef = useRef(null);
 
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
   const [gastadoDia, setGastadoDia] = useState(null);
   const [saldoDisponible, setSaldoDisponible] = useState(null);
   const [deudaTotalPendiente, setDeudaTotalPendiente] = useState(null);
+  const [pagosPendientesTarjetas, setPagosPendientesTarjetas] = useState([]);
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
@@ -181,6 +334,12 @@ export default function RegistroRapidoPage() {
     const { anio, mes } = anioMes(fechaSeleccionada);
     const deudas = await listarDeudasMensual(anio, mes);
     setDeudaTotalPendiente(deudas.reduce((s, d) => s + Number(d.actual || 0), 0));
+  }
+  // Cuanto hay que pagar del ciclo ya cortado de cada tarjeta y en cuantos
+  // dias — solo aparece si ese ciclo ya cerro (no mientras se sigue
+  // llenando el ciclo nuevo) y desaparece solo en cuanto se paga.
+  async function cargarPagosPendientesTarjetas() {
+    setPagosPendientesTarjetas(await obtenerResumenPago());
   }
   async function cargarCategorias() {
     setCategorias(await listarCategorias());
@@ -245,8 +404,11 @@ export default function RegistroRapidoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
 
+  // Independiente de la fecha seleccionada (no cambia al girar la rueda),
+  // asi que se carga aparte una sola vez al entrar.
   useEffect(() => {
-    botonHoyRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+    cargarPagosPendientesTarjetas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const diasConRegistro = useMemo(
@@ -369,6 +531,7 @@ export default function RegistroRapidoPage() {
       setTarjetaId("");
       setCuenta("");
       cargarTodo();
+      if (fuentePago === "TARJETA") cargarPagosPendientesTarjetas();
       const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
       setMensaje("Gasto registrado");
@@ -418,6 +581,7 @@ export default function RegistroRapidoPage() {
       setFuentePagoFijo("EFECTIVO");
       setTarjetaIdFijo("");
       setCuentaFijo("");
+      if (fuentePagoFijo === "TARJETA") cargarPagosPendientesTarjetas();
       setMensaje("Gasto fijo marcado como pagado");
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
@@ -447,6 +611,25 @@ export default function RegistroRapidoPage() {
             Debés ${deudaTotalPendiente.toFixed(2)}
           </div>
         )}
+        {pagosPendientesTarjetas.length > 0 && (
+          <div className="absolute top-2 left-3 text-left space-y-1">
+            {pagosPendientesTarjetas.map((p) => {
+              const Icono = iconoParaTarjeta(p.nombre);
+              return (
+                <div
+                  key={p.tarjetaId}
+                  className="flex items-center gap-1 text-xs font-semibold text-orange-600"
+                  title={`${p.nombre} — ciclo ya cortado, vence el ${p.fechaPago}`}
+                >
+                  {Icono ? <Icono /> : <span>{p.nombre}:</span>}
+                  <span>
+                    ${p.monto.toFixed(2)} en {p.diasParaPago}d
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <p className="text-sm text-gray-500">
           {fechaSeleccionada === hoyReal ? "Hoy llevas gastado" : `Llevas gastado el ${formatoFechaLarga(fechaSeleccionada)}`}
         </p>
@@ -454,39 +637,14 @@ export default function RegistroRapidoPage() {
           {gastadoDia === null ? "..." : `$${gastadoDia.toFixed(2)}`}
         </p>
 
-        <div className="flex justify-start gap-1 mt-4 overflow-x-auto">
-          {ventanaDias.map((f) => {
-            const seleccionado = f === fechaSeleccionada;
-            const esHoy = f === hoyReal;
-            const dow = diaSemana(f);
-            const tipo = tipoPorDia.get(f);
-            // Si ya sabemos el tipo real del dia (segun el patron alterno de
-            // sabados de Ajustes + dias libres), lo usamos; si no hay Ajustes
-            // configurados todavia, se cae al heuristico viejo (fin de semana
-            // sin ningun registro) para no dejar el carrusel sin marcar nada.
-            const finDeSemanaSinDatos = tipo
-              ? tipo === "DOMINGO" || tipo === "SABADO_NO_TOCA" || tipo === "LIBRE"
-              : (dow === 0 || dow === 6) && !diasConRegistro.has(f);
-            return (
-              <button
-                key={f}
-                ref={esHoy ? botonHoyRef : null}
-                type="button"
-                onClick={() => setFechaSeleccionada(f)}
-                className={`flex flex-col items-center justify-center w-11 h-14 rounded-lg text-xs shrink-0 transition-colors ${
-                  seleccionado
-                    ? "bg-purple-600 text-white"
-                    : finDeSemanaSinDatos
-                      ? "bg-gray-50 text-gray-300"
-                      : "bg-gray-100 text-gray-600 hover:bg-purple-100"
-                } ${esHoy && !seleccionado ? "ring-1 ring-purple-400" : ""}`}
-              >
-                <span>{NOMBRES_DIA[dow]}</span>
-                <span className="font-semibold text-sm">{diaDelMes(f)}</span>
-              </button>
-            );
-          })}
-        </div>
+        <SelectorFechaRueda
+          dias={ventanaDias}
+          fechaSeleccionada={fechaSeleccionada}
+          onSeleccionar={setFechaSeleccionada}
+          hoyReal={hoyReal}
+          tipoPorDia={tipoPorDia}
+          diasConRegistro={diasConRegistro}
+        />
       </div>
 
       {mensaje && (

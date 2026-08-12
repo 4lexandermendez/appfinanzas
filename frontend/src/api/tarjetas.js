@@ -24,6 +24,11 @@ export async function pagarTarjeta(id) {
   return data.tarjeta;
 }
 
+export async function obtenerResumenPago() {
+  const { data } = await client.get("/tarjetas/resumen-pago");
+  return data.pendientes;
+}
+
 export async function listarMovimientos(tarjetaId) {
   const { data } = await client.get(`/tarjetas/${tarjetaId}/movimientos`);
   return data.movimientos;

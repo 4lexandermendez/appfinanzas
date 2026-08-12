@@ -1,12 +1,13 @@
 const { Router } = require("express");
 const { requiereAuth } = require("../middlewares/authMiddleware");
-const { listar, crear, actualizar, eliminar, pagar } = require("../controllers/tarjetaController");
+const { listar, crear, actualizar, eliminar, pagar, resumenPago } = require("../controllers/tarjetaController");
 const movimientos = require("../controllers/movimientoTarjetaController");
 
 const router = Router();
 router.use(requiereAuth);
 
 router.get("/", listar);
+router.get("/resumen-pago", resumenPago);
 router.post("/", crear);
 router.put("/:id", actualizar);
 router.delete("/:id", eliminar);

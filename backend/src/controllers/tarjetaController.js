@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { calcularInfoTarjeta } = require("../services/tarjetaService");
+const { calcularInfoTarjeta, calcularMontoCicloVencido } = require("../services/tarjetaService");
 const { hoyElSalvador } = require("../utils/fecha");
 
 async function listar(req, res) {
@@ -7,7 +7,28 @@ async function listar(req, res) {
     where: { usuarioId: req.usuarioId },
     orderBy: { nombre: "asc" },
   });
-  res.json({ tarjetas: tarjetas.map((t) => ({ ...t, info: calcularInfoTarjeta(t) })) });
+  if (tarjetas.length === 0) return res.json({ tarjetas: [] });
+
+  const movimientos = await prisma.movimientoTarjeta.findMany({
+    where: { tarjetaId: { in: tarjetas.map((t) => t.id) } },
+    orderBy: { id: "asc" },
+  });
+  const movimientosPorTarjeta = new Map();
+  for (const m of movimientos) {
+    if (!movimientosPorTarjeta.has(m.tarjetaId)) movimientosPorTarjeta.set(m.tarjetaId, []);
+    movimientosPorTarjeta.get(m.tarjetaId).push(m);
+  }
+
+  res.json({
+    tarjetas: tarjetas.map((t) => {
+      const info = calcularInfoTarjeta(t);
+      // Lo que de verdad hay que pagar ahora (ciclo ya cortado) — distinto
+      // de info.pagoTotal, que es el saldo completo e incluye compras del
+      // ciclo nuevo que todavia no vencen.
+      info.montoCicloVencido = calcularMontoCicloVencido(movimientosPorTarjeta.get(t.id) || [], info.ciclo);
+      return { ...t, info };
+    }),
+  });
 }
 
 function validarDia(valor, campo) {
@@ -123,9 +144,11 @@ async function eliminar(req, res) {
   res.status(204).send();
 }
 
-// Paga el saldo completo de una sola vez: crea el movimiento de pago (monto
-// negativo) y deja saldoActual en 0. Es el atajo de "ya pagué esto" en vez
-// de tener que calcular el monto a mano en el formulario de movimientos.
+// Paga SOLO lo que corresponde al ciclo ya cortado (no el saldo completo):
+// si ya hay compras nuevas del ciclo que recien empezo, esas quedan sin
+// tocar — pagarlas de mas seria adelantar algo que ni siquiera vence
+// todavia. Crea el movimiento de pago (monto negativo) por ese monto y
+// resta lo mismo del saldo, en vez de dejarlo en 0 a la fuerza.
 async function pagar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.tarjetaCredito.findUnique({ where: { id } });
@@ -133,21 +156,62 @@ async function pagar(req, res) {
     return res.status(404).json({ error: "Tarjeta no encontrada" });
   }
 
-  const saldo = Number(existente.saldoActual);
-  if (saldo <= 0) {
-    return res.status(400).json({ error: "Esta tarjeta no tiene saldo pendiente" });
+  const info = calcularInfoTarjeta(existente);
+  const movimientos = await prisma.movimientoTarjeta.findMany({ where: { tarjetaId: id }, orderBy: { id: "asc" } });
+  const montoAPagar = calcularMontoCicloVencido(movimientos, info.ciclo);
+  if (montoAPagar <= 0) {
+    return res.status(400).json({ error: "No hay saldo pendiente del ciclo ya cortado (lo que tenés es del ciclo nuevo, todavía no vence)" });
   }
 
   const fechaHoy = hoyElSalvador();
 
   const [, tarjeta] = await prisma.$transaction([
     prisma.movimientoTarjeta.create({
-      data: { tarjetaId: id, monto: -saldo, fecha: fechaHoy, descripcion: "Pago total" },
+      data: { tarjetaId: id, monto: -montoAPagar, fecha: fechaHoy, descripcion: "Pago total" },
     }),
-    prisma.tarjetaCredito.update({ where: { id }, data: { saldoActual: 0 } }),
+    prisma.tarjetaCredito.update({ where: { id }, data: { saldoActual: { decrement: montoAPagar } } }),
   ]);
 
   res.json({ tarjeta: { ...tarjeta, info: calcularInfoTarjeta(tarjeta) } });
 }
 
-module.exports = { listar, crear, actualizar, eliminar, pagar };
+// Cuanto hay que pagar del ciclo YA CORTADO de cada tarjeta, y en cuantos
+// dias — para el aviso de Registro Rapido. Solo cuenta lo cargado hasta
+// corteVencido (no lo que ya se esta acumulando en el ciclo nuevo, todavia
+// abierto) y que no se haya pagado ya (id posterior al ultimo pago) — asi
+// una tarjeta recien pagada, con compras nuevas en el ciclo que recien
+// empieza, no aparece hasta que ese ciclo tambien corte.
+async function resumenPago(req, res) {
+  const tarjetas = await prisma.tarjetaCredito.findMany({ where: { usuarioId: req.usuarioId } });
+  if (tarjetas.length === 0) return res.json({ pendientes: [] });
+
+  const movimientos = await prisma.movimientoTarjeta.findMany({
+    where: { tarjetaId: { in: tarjetas.map((t) => t.id) } },
+    orderBy: { id: "asc" },
+  });
+  const movimientosPorTarjeta = new Map();
+  for (const m of movimientos) {
+    if (!movimientosPorTarjeta.has(m.tarjetaId)) movimientosPorTarjeta.set(m.tarjetaId, []);
+    movimientosPorTarjeta.get(m.tarjetaId).push(m);
+  }
+
+  const pendientes = [];
+  for (const t of tarjetas) {
+    const info = calcularInfoTarjeta(t);
+    const movs = movimientosPorTarjeta.get(t.id) || [];
+    const montoCiclo = calcularMontoCicloVencido(movs, info.ciclo);
+    if (montoCiclo > 0) {
+      pendientes.push({
+        tarjetaId: t.id,
+        nombre: t.nombre,
+        monto: montoCiclo,
+        diasParaPago: info.diasParaPago,
+        fechaPago: info.ciclo.pagoVencido,
+      });
+    }
+  }
+
+  res.json({ pendientes });
+}
+
+module.exports = { listar, crear, actualizar, eliminar, pagar, resumenPago };

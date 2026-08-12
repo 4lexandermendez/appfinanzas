@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { calcularInfoTarjeta } = require("../services/tarjetaService");
+const { calcularInfoTarjeta, calcularMontoCicloVencido } = require("../services/tarjetaService");
 
 async function listar(req, res) {
   const grupos = await prisma.grupoCuenta.findMany({
@@ -10,10 +10,32 @@ async function listar(req, res) {
     },
     orderBy: { orden: "asc" },
   });
+
+  const todasLasTarjetas = grupos.flatMap((g) => g.tarjetas);
+  const movimientos = todasLasTarjetas.length
+    ? await prisma.movimientoTarjeta.findMany({
+        where: { tarjetaId: { in: todasLasTarjetas.map((t) => t.id) } },
+        orderBy: { id: "asc" },
+      })
+    : [];
+  const movimientosPorTarjeta = new Map();
+  for (const m of movimientos) {
+    if (!movimientosPorTarjeta.has(m.tarjetaId)) movimientosPorTarjeta.set(m.tarjetaId, []);
+    movimientosPorTarjeta.get(m.tarjetaId).push(m);
+  }
+
   res.json({
     grupos: grupos.map((g) => ({
       ...g,
-      tarjetas: g.tarjetas.map((t) => ({ ...t, info: calcularInfoTarjeta(t) })),
+      tarjetas: g.tarjetas.map((t) => {
+        const info = calcularInfoTarjeta(t);
+        // Lo que de verdad hay que pagar ahora (ciclo ya cortado) — ver
+        // tarjetaController.listar, es el mismo calculo replicado aca
+        // porque esta pantalla (Cuentas) arma la grilla desde este
+        // endpoint, no desde /api/tarjetas.
+        info.montoCicloVencido = calcularMontoCicloVencido(movimientosPorTarjeta.get(t.id) || [], info.ciclo);
+        return { ...t, info };
+      }),
     })),
   });
 }

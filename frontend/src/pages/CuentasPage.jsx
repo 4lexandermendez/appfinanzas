@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   listarGruposCuenta, crearGrupoCuenta, eliminarGrupoCuenta, moverGrupoCuenta,
-  crearCuentaBancaria,
+  crearCuentaBancaria, crearCuentaEfectivo,
 } from "../api/gruposCuenta";
 import {
   crearTarjeta, eliminarTarjeta, pagarTarjeta,
@@ -262,6 +262,10 @@ function gradientePara(id) {
 // encabeza tanto las tarjetas de credito como las de debito — estas ultimas
 // no llevan monto porque el saldo real vive en la cuenta, no en la tarjeta.
 function TarjetaVisual({ id, nombre, etiqueta, monto, detalle, onEliminar, eliminarTitulo }) {
+  // Borrar una tarjeta es destructivo (se pierde todo su historial de
+  // movimientos) — antes era un solo click, sin confirmar, lo cual causó
+  // una pérdida de datos real por accidente. Ahora pide confirmar.
+  const [confirmando, setConfirmando] = useState(false);
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br ${gradientePara(id)} p-5 text-white`}>
       <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" />
@@ -275,19 +279,28 @@ function TarjetaVisual({ id, nombre, etiqueta, monto, detalle, onEliminar, elimi
         </div>
         <div className="flex flex-col items-end gap-3 shrink-0">
           <div className="w-9 h-7 rounded-md bg-white/25" />
-          <button onClick={onEliminar} className="text-white/70 hover:text-white" title={eliminarTitulo}>
-            <IconTrash className="w-4 h-4" />
-          </button>
+          {confirmando ? (
+            <span className="flex items-center gap-1 text-[11px] whitespace-nowrap">
+              <span className="text-white/70">¿Seguro?</span>
+              <button onClick={onEliminar} className="text-white font-semibold hover:underline">Sí</button>
+              <button onClick={() => setConfirmando(false)} className="text-white/70 hover:underline">No</button>
+            </span>
+          ) : (
+            <button onClick={() => setConfirmando(true)} className="text-white/70 hover:text-white" title={eliminarTitulo}>
+              <IconTrash className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
+function TarjetaCard({ tarjeta, todasLasCuentas, onEliminar, onRefrescar }) {
   const [expandida, setExpandida] = useState(false);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [movimientos, setMovimientos] = useState([]);
+  const [cuentaOrigenId, setCuentaOrigenId] = useState("");
 
   async function cargarMovimientos() {
     setMovimientos(await listarMovimientos(tarjeta.id));
@@ -319,7 +332,7 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
   async function handlePagar() {
     setPagando(true);
     try {
-      await pagarTarjeta(tarjeta.id);
+      await pagarTarjeta(tarjeta.id, cuentaOrigenId ? Number(cuentaOrigenId) : undefined);
       await cargarMovimientos();
       onRefrescar();
     } finally {
@@ -373,14 +386,31 @@ function TarjetaCard({ tarjeta, onEliminar, onRefrescar }) {
 
       <div className="p-6">
         {hayDeuda && (
-          <button
-            onClick={handlePagar}
-            disabled={pagando}
-            title="Solo paga el ciclo ya cortado — lo que ya compraste en el ciclo nuevo no vence todavía"
-            className="mb-3 text-green-700 text-sm font-medium hover:underline disabled:opacity-50"
-          >
-            {pagando ? "Pagando..." : `Pagar $${info.montoCicloVencido.toFixed(2)} (ciclo cortado)`}
-          </button>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={handlePagar}
+              disabled={pagando}
+              title="Solo paga el ciclo ya cortado — lo que ya compraste en el ciclo nuevo no vence todavía"
+              className="text-green-700 text-sm font-medium hover:underline disabled:opacity-50"
+            >
+              {pagando ? "Pagando..." : `Pagar $${info.montoCicloVencido.toFixed(2)} (ciclo cortado)`}
+            </button>
+            {todasLasCuentas.length > 0 && (
+              <select
+                value={cuentaOrigenId}
+                onChange={(e) => setCuentaOrigenId(e.target.value)}
+                title="De qué cuenta sale el dinero (opcional)"
+                className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+              >
+                <option value="">Sin descontar de ninguna cuenta</option>
+                {todasLasCuentas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -538,7 +568,7 @@ function TransferenciaForm({ cuentasDestino, onSubmit, onCancelar }) {
       <select value={cuentaDestinoId} onChange={(e) => setCuentaDestinoId(e.target.value)}
         className="border border-gray-300 rounded px-2 py-1 text-sm">
         {cuentasDestino.map((c) => (
-          <option key={c.id} value={c.id}>{c.nombre} ({c.grupoNombre})</option>
+          <option key={c.id} value={c.id}>{c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})</option>
         ))}
       </select>
       <input type="number" step="0.01" placeholder="Monto" value={monto}
@@ -596,13 +626,17 @@ function CuentaBancariaRow({
     onRefrescar();
   }
 
-  const cuentasDestino = todasLasCuentas.filter((c) => c.id !== cuenta.id);
+  // La billetera de efectivo se ordena primero — es el destino más común
+  // (retirar efectivo), asi queda a la vista sin tener que buscarla.
+  const cuentasDestino = todasLasCuentas
+    .filter((c) => c.id !== cuenta.id)
+    .sort((a, b) => (b.esEfectivo ? 1 : 0) - (a.esEfectivo ? 1 : 0));
 
   return (
     <div className="bg-gray-50 rounded px-3 py-2">
       <div className="flex items-center justify-between text-sm">
         <div>
-          <span className="text-gray-700 font-medium">{cuenta.nombre}</span>
+          <span className="text-gray-700 font-medium">{cuenta.esEfectivo ? "💵 " : ""}{cuenta.nombre}</span>
           <span className="text-gray-500"> · saldo ${Number(cuenta.saldoActual).toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -674,6 +708,10 @@ function GrupoCuentaCard({
   grupo, esPrimero, esUltimo, todasLasCuentas, onEliminarGrupo, onMoverGrupo,
   onEliminarTarjeta, onEliminarTarjetaDebito, onRefrescar,
 }) {
+  // Borrar un grupo se lleva TODAS sus cuentas y tarjetas (con todo su
+  // historial) en cascada — antes era un solo click sin confirmar, lo cual
+  // causó una pérdida de datos real por accidente. Ahora pide confirmar.
+  const [confirmandoBorrarGrupo, setConfirmandoBorrarGrupo] = useState(false);
   return (
     <div className="bg-white rounded-lg shadow p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -698,9 +736,22 @@ function GrupoCuentaCard({
           </div>
           <h2 className="text-lg font-semibold text-gray-900">{grupo.nombre}</h2>
         </div>
-        <button onClick={() => onEliminarGrupo(grupo.id)} className="text-red-500 hover:text-red-700" title="Eliminar grupo">
-          <IconTrash />
-        </button>
+        {confirmandoBorrarGrupo ? (
+          <span className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">¿Borrar "{grupo.nombre}" y todo su contenido?</span>
+            <button
+              onClick={async () => { await onEliminarGrupo(grupo.id); setConfirmandoBorrarGrupo(false); }}
+              className="text-red-600 font-medium hover:underline"
+            >
+              Sí
+            </button>
+            <button onClick={() => setConfirmandoBorrarGrupo(false)} className="text-gray-500 hover:underline">No</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmandoBorrarGrupo(true)} className="text-red-500 hover:text-red-700" title="Eliminar grupo">
+            <IconTrash />
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -722,7 +773,7 @@ function GrupoCuentaCard({
       ))}
 
       {grupo.tarjetas.map((t) => (
-        <TarjetaCard key={t.id} tarjeta={t} onEliminar={onEliminarTarjeta} onRefrescar={onRefrescar} />
+        <TarjetaCard key={t.id} tarjeta={t} todasLasCuentas={todasLasCuentas} onEliminar={onEliminarTarjeta} onRefrescar={onRefrescar} />
       ))}
     </div>
   );
@@ -841,8 +892,12 @@ export default function CuentasPage() {
     cargar();
   }
   async function handleEliminarGrupo(id) {
-    await eliminarGrupoCuenta(id);
-    cargar();
+    try {
+      await eliminarGrupoCuenta(id);
+      cargar();
+    } catch (e) {
+      alert(e?.response?.data?.error || "No se pudo eliminar el grupo");
+    }
   }
   async function handleMoverGrupo(id, direccion) {
     await moverGrupoCuenta(id, direccion);
@@ -868,6 +923,16 @@ export default function CuentasPage() {
     await eliminarTarjetaDebito(cuentaId);
     cargar();
   }
+  const [configurandoEfectivo, setConfigurandoEfectivo] = useState(false);
+  async function handleConfigurarEfectivo() {
+    setConfigurandoEfectivo(true);
+    try {
+      await crearCuentaEfectivo();
+      await cargar();
+    } finally {
+      setConfigurandoEfectivo(false);
+    }
+  }
 
   if (cargando) {
     return <div className="p-6 text-center text-gray-500">Cargando cuentas...</div>;
@@ -876,19 +941,32 @@ export default function CuentasPage() {
   const todasLasCuentas = grupos.flatMap((g) =>
     g.cuentas.map((c) => ({ ...c, grupoNombre: g.nombre }))
   );
+  const tieneEfectivo = todasLasCuentas.some((c) => c.esEfectivo);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Cuentas</h1>
-        <AgregarMenu
-          grupos={grupos}
-          todasLasCuentas={todasLasCuentas}
-          onNuevoGrupo={handleNuevoGrupo}
-          onNuevaCuenta={handleNuevaCuenta}
-          onNuevaTarjeta={handleNuevaTarjeta}
-          onNuevaTarjetaDebito={handleNuevaTarjetaDebito}
-        />
+        <div className="flex items-center gap-3">
+          {!tieneEfectivo && (
+            <button
+              onClick={handleConfigurarEfectivo}
+              disabled={configurandoEfectivo}
+              className="text-sm text-purple-600 hover:underline disabled:opacity-50"
+              title="Crea una cuenta 'Billetera Efectivo' para llevar el saldo de tu efectivo"
+            >
+              {configurandoEfectivo ? "Configurando..." : "💵 Configurar mi Efectivo"}
+            </button>
+          )}
+          <AgregarMenu
+            grupos={grupos}
+            todasLasCuentas={todasLasCuentas}
+            onNuevoGrupo={handleNuevoGrupo}
+            onNuevaCuenta={handleNuevaCuenta}
+            onNuevaTarjeta={handleNuevaTarjeta}
+            onNuevaTarjetaDebito={handleNuevaTarjetaDebito}
+          />
+        </div>
       </div>
 
       {grupos.map((g, i) => (

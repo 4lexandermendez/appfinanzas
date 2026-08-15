@@ -136,7 +136,7 @@ function AportesExternos({ aportes, onChange }) {
 }
 
 const GRADOS_POR_ITEM = 15; // cuanto "gira" el anillo por cada dia
-const RADIO_RUEDA = 95; // px — separacion horizontal maxima del centro
+const RADIO_RUEDA = 125; // px — separacion horizontal maxima del centro
 const SENSIBILIDAD_ARRASTRE = GRADOS_POR_ITEM / 42; // px arrastrados -> grados
 
 // Selector de fecha tipo anillo/cilindro giratorio: se arrastra de
@@ -199,7 +199,12 @@ function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, t
 
   return (
     <div
-      className="relative h-16 mt-4 select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
+      // isolate: los z-index altos de cada dia (hasta 1000, para que el
+      // frente tape a los que se van curvando de canto) son solo para
+      // ordenarse ENTRE ELLOS. Sin isolate, esos numeros se comparan contra
+      // TODA la pagina y se salian por encima del menu lateral movil
+      // (z-40/z-50) — con isolate quedan encerrados aca adentro.
+      className="relative isolate h-16 mt-4 select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -233,17 +238,21 @@ function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, t
             type="button"
             onClick={() => handleClickDia(f, i)}
             style={{
-              transform: `translate(${offsetX - 28}px, -50%) scaleX(${escalaX})`,
+              transform: `translate(${offsetX - 24}px, -50%) scaleX(${escalaX})`,
               opacity: opacidad,
               filter: `brightness(${0.55 + 0.45 * escalaX})`,
               zIndex: Math.round(1000 - anguloAbs),
             }}
-            className={`absolute left-1/2 top-1/2 flex flex-col items-center justify-center w-14 h-14 rounded-lg text-xs ${
+            // Solo el dia seleccionado (al frente) lleva caja de fondo solido
+            // — los demas son texto sin fondo, para que al superponerse (son
+            // muchos dias angostos muy juntos) no choquen visualmente dos
+            // cajas opacas entre si, solo texto atenuado sobre texto.
+            className={`absolute left-1/2 top-1/2 flex flex-col items-center justify-center w-12 h-14 rounded-lg text-xs ${
               seleccionado
                 ? "bg-purple-600 text-white"
                 : finDeSemanaSinDatos
-                  ? "bg-gray-50 text-gray-300"
-                  : "bg-gray-100 text-gray-600"
+                  ? "text-gray-300"
+                  : "text-gray-600"
             } ${esHoy && !seleccionado ? "ring-1 ring-purple-400" : ""}`}
           >
             <span>{NOMBRES_DIA[dow]}</span>

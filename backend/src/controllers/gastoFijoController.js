@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
+const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
 const { hoyElSalvador } = require("../utils/fecha");
 
 async function listarConfig(req, res) {
@@ -197,8 +198,9 @@ async function guardarMensual(req, res) {
 
   const existente = await prisma.gastoFijoMensual.findUnique({
     where: { presupuestoId_gastoFijoConfigId: { presupuestoId: presupuesto.id, gastoFijoConfigId: config.id } },
-    include: { movimientoTarjeta: true, aportesExternos: true },
+    include: { movimientoTarjeta: true, movimientoCuenta: true, aportesExternos: true },
   });
+  const cuentaEfectivo = await obtenerCuentaEfectivo(req.usuarioId);
 
   const montoRealFinal = realNum ?? Number(existente?.montoReal || 0);
   const aportesNum = parsearAportesExternos(aportesExternos, montoRealFinal);
@@ -273,8 +275,40 @@ async function guardarMensual(req, res) {
       });
     }
 
+    // Mismo patrón que arriba pero para la billetera de efectivo: no hay
+    // "cambio de destino" posible (solo existe una billetera por usuario),
+    // así que solo hace falta crear/ajustar-por-delta/borrar el vínculo.
+    const movimientoCuentaPrevio = existente?.movimientoCuenta;
+    if (guardado.fuente === "EFECTIVO" && montoFinal > 0 && cuentaEfectivo) {
+      const montoVinculado = -montoFinal;
+      if (movimientoCuentaPrevio) {
+        const delta = montoVinculado - Number(movimientoCuentaPrevio.monto);
+        if (delta !== 0) {
+          await tx.movimientoCuenta.update({ where: { id: movimientoCuentaPrevio.id }, data: { monto: montoVinculado } });
+          await tx.cuentaBancaria.update({ where: { id: cuentaEfectivo.id }, data: { saldoActual: { increment: delta } } });
+        }
+      } else {
+        await tx.movimientoCuenta.create({
+          data: {
+            cuentaId: cuentaEfectivo.id,
+            monto: montoVinculado,
+            fecha: hoyElSalvador(),
+            descripcion: config.nombre,
+            gastoFijoMensualId: guardado.id,
+          },
+        });
+        await tx.cuentaBancaria.update({ where: { id: cuentaEfectivo.id }, data: { saldoActual: { decrement: montoFinal } } });
+      }
+    } else if (movimientoCuentaPrevio) {
+      await tx.movimientoCuenta.delete({ where: { id: movimientoCuentaPrevio.id } });
+      await tx.cuentaBancaria.update({
+        where: { id: movimientoCuentaPrevio.cuentaId },
+        data: { saldoActual: { decrement: Number(movimientoCuentaPrevio.monto) } },
+      });
+    }
+
     return tx.gastoFijoMensual.findUnique({ where: { id: guardado.id }, include: { aportesExternos: true } });
-  });
+  }, { timeout: 15000 });
 
   res.json({ registro });
 }

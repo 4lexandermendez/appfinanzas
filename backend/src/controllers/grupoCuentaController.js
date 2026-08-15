@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { calcularInfoTarjeta, calcularMontoCicloVencido } = require("../services/tarjetaService");
+const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
 
 async function listar(req, res) {
   const grupos = await prisma.grupoCuenta.findMany({
@@ -101,9 +102,15 @@ async function actualizar(req, res) {
 
 async function eliminar(req, res) {
   const id = Number(req.params.id);
-  const existente = await prisma.grupoCuenta.findUnique({ where: { id } });
+  const existente = await prisma.grupoCuenta.findUnique({ where: { id }, include: { cuentas: true } });
   if (!existente || existente.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Grupo no encontrado" });
+  }
+  // Igual que en eliminarCuenta: no se deja borrar en cascada un grupo que
+  // contenga la cuenta de Efectivo, para no perder su historial por
+  // accidente al borrar el grupo entero.
+  if (existente.cuentas.some((c) => c.esEfectivo)) {
+    return res.status(400).json({ error: "Este grupo contiene tu cuenta de Efectivo — no se puede eliminar así" });
   }
   await prisma.grupoCuenta.delete({ where: { id } });
   res.status(204).send();
@@ -148,8 +155,51 @@ async function eliminarCuenta(req, res) {
   if (!cuenta || cuenta.grupo.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Cuenta no encontrada" });
   }
+  // Igual que las categorías esDefault: no se deja borrar la billetera de
+  // efectivo por accidente, ya que se llevaría todo su historial de
+  // movimientos vinculados (gastos en efectivo, ingresos, pagos de tarjeta).
+  if (cuenta.esEfectivo) {
+    return res.status(400).json({ error: "No se puede eliminar la cuenta de Efectivo" });
+  }
   await prisma.cuentaBancaria.delete({ where: { id } });
   res.status(204).send();
 }
 
-module.exports = { listar, crear, actualizar, eliminar, mover, crearCuenta, actualizarCuenta, eliminarCuenta };
+// Crea de una sola vez el grupo + cuenta que representan la billetera fisica
+// de efectivo del usuario ("Configurar mi Efectivo"). Solo puede haber una
+// por usuario.
+async function configurarEfectivo(req, res) {
+  const existente = await obtenerCuentaEfectivo(req.usuarioId);
+  if (existente) {
+    return res.status(400).json({ error: "Ya tenés una cuenta de Efectivo configurada" });
+  }
+
+  const ultimo = await prisma.grupoCuenta.findFirst({
+    where: { usuarioId: req.usuarioId },
+    orderBy: { orden: "desc" },
+  });
+
+  const grupo = await prisma.$transaction(async (tx) => {
+    const nuevoGrupo = await tx.grupoCuenta.create({
+      data: { usuarioId: req.usuarioId, nombre: "Efectivo", orden: (ultimo?.orden ?? 0) + 1 },
+    });
+    const cuenta = await tx.cuentaBancaria.create({
+      data: { grupoId: nuevoGrupo.id, nombre: "Billetera Efectivo", esEfectivo: true },
+    });
+    return { ...nuevoGrupo, cuentas: [cuenta], tarjetas: [] };
+  }, { timeout: 15000 });
+
+  res.status(201).json({ grupo });
+}
+
+module.exports = {
+  listar,
+  crear,
+  actualizar,
+  eliminar,
+  mover,
+  crearCuenta,
+  actualizarCuenta,
+  eliminarCuenta,
+  configurarEfectivo,
+};

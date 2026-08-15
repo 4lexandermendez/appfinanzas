@@ -115,6 +115,7 @@ model GastoFijoMensual {
   gastoFijoConfig   GastoFijoConfig    @relation(fields: [gastoFijoConfigId], references: [id], onDelete: Cascade)
   tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
   movimientoTarjeta MovimientoTarjeta?
+  movimientoCuenta  MovimientoCuenta?
   aportesExternos   AporteExterno[]
 
   @@unique([presupuestoId, gastoFijoConfigId])
@@ -150,8 +151,15 @@ model Ingreso {
   montoEstimado Decimal   @map("monto_estimado") @db.Decimal(10, 2)
   montoReal     Decimal?  @map("monto_real") @db.Decimal(10, 2)
   fecha         DateTime? @db.Date
+  // Cuenta opcional a la que se deposita este ingreso (ej. el BAC): si se
+  // define, el monto real se refleja solo en el saldo de esa cuenta via un
+  // MovimientoCuenta vinculado (ver ingresoController). Opt-in, no rompe
+  // ingresos que no la usan.
+  cuentaId      Int?      @map("cuenta_id")
 
-  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  presupuesto      PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  cuenta           CuentaBancaria?    @relation(fields: [cuentaId], references: [id])
+  movimientoCuenta MovimientoCuenta?
 
   @@map("ingresos")
 }
@@ -229,6 +237,7 @@ model Transaccion {
   categoria         CategoriaVariable  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
   tarjeta           TarjetaCredito?    @relation(fields: [tarjetaId], references: [id])
   movimientoTarjeta MovimientoTarjeta?
+  movimientoCuenta  MovimientoCuenta?
   aportesExternos   AporteExterno[]
 
   @@map("transacciones")
@@ -252,7 +261,8 @@ model TrackerDiario {
   concepto      ConceptoTracker
   monto         Decimal         @db.Decimal(10, 2)
 
-  presupuesto PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  presupuesto      PresupuestoMensual @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  movimientoCuenta MovimientoCuenta?
 
   @@map("tracker_diario")
 }
@@ -351,10 +361,15 @@ model CuentaBancaria {
   grupoId     Int     @map("grupo_id")
   nombre      String
   saldoActual Decimal @default(0) @map("saldo_actual") @db.Decimal(10, 2)
+  // Marca la unica cuenta que representa la billetera fisica de efectivo del
+  // usuario (aplicacion, no constraint de DB, garantiza que haya como maximo
+  // una). Ver cuentaEfectivoService.
+  esEfectivo  Boolean @default(false) @map("es_efectivo")
 
   grupo         GrupoCuenta        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   tarjetaDebito TarjetaDebito?
   movimientos   MovimientoCuenta[]
+  ingresos      Ingreso[]
 
   @@map("cuentas_bancarias")
 }
@@ -379,8 +394,21 @@ model MovimientoCuenta {
   descripcion String?
   // Solo un check visual (ej. "ya lo revisé") — no afecta ningún cálculo.
   revisado    Boolean  @default(false)
+  // Vinculos opcionales (mismo patron que MovimientoTarjeta.transaccionId/
+  // gastoFijoMensualId): cuando un gasto/ingreso se paga o cobra desde/hacia
+  // esta cuenta, se crea un movimiento vinculado para mantener el saldo
+  // sincronizado sin duplicar el registro. A lo sumo uno de estos cuatro
+  // esta definido por fila.
+  transaccionId      Int? @unique @map("transaccion_id")
+  gastoFijoMensualId Int? @unique @map("gasto_fijo_mensual_id")
+  ingresoId          Int? @unique @map("ingreso_id")
+  trackerDiarioId    Int? @unique @map("tracker_diario_id")
 
-  cuenta CuentaBancaria @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  cuenta           CuentaBancaria    @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  transaccion      Transaccion?      @relation(fields: [transaccionId], references: [id])
+  gastoFijoMensual GastoFijoMensual? @relation(fields: [gastoFijoMensualId], references: [id])
+  ingreso          Ingreso?          @relation(fields: [ingresoId], references: [id])
+  trackerDiario    TrackerDiario?    @relation(fields: [trackerDiarioId], references: [id])
 
   @@map("movimientos_cuenta")
 }

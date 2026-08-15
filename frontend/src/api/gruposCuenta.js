@@ -36,3 +36,8 @@ export async function actualizarCuentaBancaria(id, nombre) {
 export async function eliminarCuentaBancaria(id) {
   await client.delete(`/grupos-cuenta/cuentas/${id}`);
 }
+
+export async function crearCuentaEfectivo() {
+  const { data } = await client.post("/grupos-cuenta/configurar-efectivo");
+  return data.grupo;
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   listarIngresos, crearIngreso, actualizarIngreso, eliminarIngreso,
 } from "../api/ingresos";
+import { listarGruposCuenta } from "../api/gruposCuenta";
 import {
   listarAhorros, crearAhorro, actualizarAhorro, eliminarAhorro,
 } from "../api/ahorros";
@@ -111,17 +112,20 @@ export default function PresupuestoPage() {
   const [sugerenciasFijos, setSugerenciasFijos] = useState([]);
   const [deudas, setDeudas] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   async function cargarTodo() {
     setCargando(true);
-    const [i, a, gf, d, ev] = await Promise.all([
+    const [i, a, gf, d, ev, grupos] = await Promise.all([
       listarIngresos(anio, mes),
       listarAhorros(anio, mes),
       listarGastosFijosMensual(anio, mes),
       listarDeudasMensual(anio, mes),
       listarEstimadoVariables(anio, mes),
+      listarGruposCuenta(),
     ]);
+    setCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoNombre: g.nombre }))));
     setIngresos(i);
     setAhorros(a);
     setGastosFijos(gf.gastosFijos);
@@ -150,6 +154,13 @@ export default function PresupuestoPage() {
   }
   async function handleRealIngreso(id, montoReal) {
     await actualizarIngreso(id, { montoReal: montoReal === "" ? null : Number(montoReal) });
+    cargarTodo();
+  }
+  // Vincular una cuenta (ej. el BAC) hace que el Real de este ingreso se
+  // sume solo al saldo de esa cuenta — sin esto, el usuario tiene que
+  // registrar el depósito por separado en Cuentas.
+  async function handleCuentaIngreso(id, cuentaId) {
+    await actualizarIngreso(id, { cuentaId: cuentaId === "" ? null : Number(cuentaId) });
     cargarTodo();
   }
   async function handleEliminarIngreso(id) {
@@ -301,6 +312,21 @@ export default function PresupuestoPage() {
                   onBlur={(e) => handleRealIngreso(i.id, e.target.value)}
                   className="w-24 border border-gray-300 rounded px-2 py-1"
                 />
+                {cuentas.length > 0 && (
+                  <select
+                    defaultValue={i.cuentaId ?? ""}
+                    onChange={(e) => handleCuentaIngreso(i.id, e.target.value)}
+                    title="Cuenta a la que se deposita el Real (opcional)"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                  >
+                    <option value="">Sin cuenta</option>
+                    {cuentas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button onClick={() => handleEliminarIngreso(i.id)} className="text-red-500 hover:underline">
                   Eliminar
                 </button>

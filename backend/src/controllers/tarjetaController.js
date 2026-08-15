@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { calcularInfoTarjeta, calcularMontoCicloVencido } = require("../services/tarjetaService");
+const { validarCuentaPropia } = require("../services/cuentaEfectivoService");
 const { hoyElSalvador } = require("../utils/fecha");
 
 async function listar(req, res) {
@@ -163,14 +164,48 @@ async function pagar(req, res) {
     return res.status(400).json({ error: "No hay saldo pendiente del ciclo ya cortado (lo que tenés es del ciclo nuevo, todavía no vence)" });
   }
 
+  // Cuenta origen opcional: la que el usuario ya usa para "apartar" el pago
+  // de esta tarjeta (ej. una cuenta de ahorro del mismo banco). Si se manda,
+  // ademas de pagar la tarjeta se descuenta el mismo monto de esa cuenta —
+  // sin esto, el usuario tiene que llevar ese descuento a mano.
+  const { cuentaOrigenId } = req.body;
+  let cuentaOrigen = null;
+  if (cuentaOrigenId) {
+    cuentaOrigen = await validarCuentaPropia(req.usuarioId, Number(cuentaOrigenId));
+    if (!cuentaOrigen) return res.status(404).json({ error: "Cuenta no encontrada" });
+    if (montoAPagar > Number(cuentaOrigen.saldoActual)) {
+      return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
+    }
+  }
+
   const fechaHoy = hoyElSalvador();
 
-  const [, tarjeta] = await prisma.$transaction([
-    prisma.movimientoTarjeta.create({
+  const tarjeta = await prisma.$transaction(async (tx) => {
+    await tx.movimientoTarjeta.create({
       data: { tarjetaId: id, monto: -montoAPagar, fecha: fechaHoy, descripcion: "Pago total" },
-    }),
-    prisma.tarjetaCredito.update({ where: { id }, data: { saldoActual: { decrement: montoAPagar } } }),
-  ]);
+    });
+    const actualizada = await tx.tarjetaCredito.update({
+      where: { id },
+      data: { saldoActual: { decrement: montoAPagar } },
+    });
+
+    if (cuentaOrigen) {
+      await tx.movimientoCuenta.create({
+        data: {
+          cuentaId: cuentaOrigen.id,
+          monto: -montoAPagar,
+          fecha: fechaHoy,
+          descripcion: `Pago tarjeta ${existente.nombre}`,
+        },
+      });
+      await tx.cuentaBancaria.update({
+        where: { id: cuentaOrigen.id },
+        data: { saldoActual: { decrement: montoAPagar } },
+      });
+    }
+
+    return actualizada;
+  }, { timeout: 15000 });
 
   res.json({ tarjeta: { ...tarjeta, info: calcularInfoTarjeta(tarjeta) } });
 }

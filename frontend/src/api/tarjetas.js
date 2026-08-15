@@ -19,8 +19,8 @@ export async function eliminarTarjeta(id) {
   await client.delete(`/tarjetas/${id}`);
 }
 
-export async function pagarTarjeta(id) {
-  const { data } = await client.post(`/tarjetas/${id}/pagar`);
+export async function pagarTarjeta(id, cuentaOrigenId) {
+  const { data } = await client.post(`/tarjetas/${id}/pagar`, cuentaOrigenId ? { cuentaOrigenId } : {});
   return data.tarjeta;
 }
 

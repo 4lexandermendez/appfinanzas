@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
+const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
 
 const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA", "CUENTA_BANCO", "EXTERNO"];
 const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL", "AGRICOLA_SECUNDARIA"];
@@ -101,11 +102,15 @@ async function crear(req, res) {
   const anio = fechaParsed.getUTCFullYear();
   const mes = fechaParsed.getUTCMonth() + 1;
   const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, anio, mes);
+  const cuentaEfectivo = fuenteFinal === "EFECTIVO" ? await obtenerCuentaEfectivo(req.usuarioId) : null;
 
   // Si se paga con tarjeta, ademas de la transaccion se crea el movimiento
   // en la tarjeta (vinculado via transaccionId) y se suma el monto al saldo
   // — asi el gasto variable pagado con tarjeta ya queda reflejado ahi, sin
-  // tener que registrarlo dos veces.
+  // tener que registrarlo dos veces. Si se paga en efectivo y el usuario ya
+  // tiene una billetera configurada, se hace lo mismo pero restando del
+  // saldo de esa cuenta — el "Real" de la categoría no cambia en ningún
+  // caso, es un efecto en paralelo.
   const transaccion = await prisma.$transaction(async (tx) => {
     const creada = await tx.transaccion.create({
       data: {
@@ -141,10 +146,24 @@ async function crear(req, res) {
         where: { id: creada.tarjetaId },
         data: { saldoActual: { increment: montoNum } },
       });
+    } else if (fuenteFinal === "EFECTIVO" && cuentaEfectivo) {
+      await tx.movimientoCuenta.create({
+        data: {
+          cuentaId: cuentaEfectivo.id,
+          monto: -montoNum,
+          fecha: fechaParsed,
+          descripcion: creada.categoria.nombre,
+          transaccionId: creada.id,
+        },
+      });
+      await tx.cuentaBancaria.update({
+        where: { id: cuentaEfectivo.id },
+        data: { saldoActual: { decrement: montoNum } },
+      });
     }
 
     return tx.transaccion.findUnique({ where: { id: creada.id }, include: { categoria: true, aportesExternos: true } });
-  });
+  }, { timeout: 15000 });
 
   res.status(201).json({ transaccion });
 }
@@ -153,7 +172,7 @@ async function actualizar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.transaccion.findUnique({
     where: { id },
-    include: { presupuesto: true, movimientoTarjeta: true },
+    include: { presupuesto: true, movimientoTarjeta: true, movimientoCuenta: true },
   });
   if (!existente || existente.presupuesto.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Transacción no encontrada" });
@@ -255,8 +274,29 @@ async function actualizar(req, res) {
       }
     }
 
+    // Mismo ajuste por delta que arriba, pero para el movimiento vinculado
+    // en la billetera de efectivo (si el gasto se paga con EFECTIVO y ya
+    // tenía un movimiento vinculado). El monto ahí se guarda negativo
+    // (salida de la billetera), por eso el delta ya sale con el signo
+    // correcto sin necesidad de invertir nada más.
+    if (existente.movimientoCuenta) {
+      const movimientoData = {};
+      if (data.monto !== undefined) movimientoData.monto = -data.monto;
+      if (data.fecha !== undefined) movimientoData.fecha = data.fecha;
+      if (Object.keys(movimientoData).length > 0) {
+        await tx.movimientoCuenta.update({ where: { id: existente.movimientoCuenta.id }, data: movimientoData });
+      }
+      if (data.monto !== undefined) {
+        const delta = movimientoData.monto - Number(existente.movimientoCuenta.monto);
+        await tx.cuentaBancaria.update({
+          where: { id: existente.movimientoCuenta.cuentaId },
+          data: { saldoActual: { increment: delta } },
+        });
+      }
+    }
+
     return tx.transaccion.findUnique({ where: { id: actualizada.id }, include: { categoria: true, aportesExternos: true } });
-  });
+  }, { timeout: 15000 });
 
   res.json({ transaccion });
 }
@@ -265,14 +305,15 @@ async function eliminar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.transaccion.findUnique({
     where: { id },
-    include: { presupuesto: true, movimientoTarjeta: true },
+    include: { presupuesto: true, movimientoTarjeta: true, movimientoCuenta: true },
   });
   if (!existente || existente.presupuesto.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Transacción no encontrada" });
   }
 
-  // Si tiene un movimiento de tarjeta vinculado hay que borrarlo primero
-  // (la FK no tiene cascade) y devolver el monto al saldo de la tarjeta.
+  // Si tiene un movimiento de tarjeta o de cuenta (efectivo) vinculado hay
+  // que borrarlo primero (la FK no tiene cascade) y devolver el monto al
+  // saldo correspondiente.
   await prisma.$transaction(async (tx) => {
     if (existente.movimientoTarjeta) {
       await tx.movimientoTarjeta.delete({ where: { id: existente.movimientoTarjeta.id } });
@@ -281,8 +322,15 @@ async function eliminar(req, res) {
         data: { saldoActual: { decrement: Number(existente.movimientoTarjeta.monto) } },
       });
     }
+    if (existente.movimientoCuenta) {
+      await tx.movimientoCuenta.delete({ where: { id: existente.movimientoCuenta.id } });
+      await tx.cuentaBancaria.update({
+        where: { id: existente.movimientoCuenta.cuentaId },
+        data: { saldoActual: { decrement: Number(existente.movimientoCuenta.monto) } },
+      });
+    }
     await tx.transaccion.delete({ where: { id } });
-  });
+  }, { timeout: 15000 });
 
   res.status(204).send();
 }

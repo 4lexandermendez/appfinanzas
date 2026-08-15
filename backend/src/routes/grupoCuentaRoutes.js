@@ -9,6 +9,7 @@ const {
   crearCuenta,
   actualizarCuenta,
   eliminarCuenta,
+  configurarEfectivo,
 } = require("../controllers/grupoCuentaController");
 const {
   crearTarjetaDebito,
@@ -25,6 +26,7 @@ router.use(requiereAuth);
 
 router.get("/", listar);
 router.post("/", crear);
+router.post("/configurar-efectivo", configurarEfectivo);
 router.put("/:id", actualizar);
 router.delete("/:id", eliminar);
 router.post("/:id/mover", mover);

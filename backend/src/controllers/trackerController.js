@@ -1,11 +1,18 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
+const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
 const { calcularEstimadoMes } = require("../services/estimadoTrackerService");
 const { calcularResumenReal } = require("../services/resumenTrackerService");
 const { calcularDetalleQuincenal } = require("../services/quincenalService");
 const { parseFechaSoloDia } = require("../utils/fecha");
 
 const CONCEPTOS_VALIDOS = ["PASAJE_IDA", "DESAYUNO", "ALMUERZO", "PASAJE_REGRESO"];
+const CONCEPTO_ETIQUETA = {
+  PASAJE_IDA: "Pasaje ida",
+  DESAYUNO: "Desayuno",
+  ALMUERZO: "Almuerzo",
+  PASAJE_REGRESO: "Pasaje regreso",
+};
 
 async function listar(req, res) {
   const anio = Number(req.query.anio);
@@ -49,9 +56,35 @@ async function crear(req, res) {
     fechaParsed.getUTCMonth() + 1
   );
 
-  const registro = await prisma.trackerDiario.create({
-    data: { presupuestoId: presupuesto.id, fecha: fechaParsed, concepto, monto: montoNum },
-  });
+  // Pasaje/desayuno/almuerzo son siempre en efectivo por naturaleza (no
+  // llevan selector de fuente) — si el usuario ya tiene una billetera
+  // configurada, cada registro descuenta sola de ahí, en paralelo al "Real"
+  // de Comida/Transporte que ya se calculaba antes (sin tocar ese cálculo).
+  const cuentaEfectivo = await obtenerCuentaEfectivo(req.usuarioId);
+
+  const registro = await prisma.$transaction(async (tx) => {
+    const creado = await tx.trackerDiario.create({
+      data: { presupuestoId: presupuesto.id, fecha: fechaParsed, concepto, monto: montoNum },
+    });
+
+    if (cuentaEfectivo && montoNum > 0) {
+      await tx.movimientoCuenta.create({
+        data: {
+          cuentaId: cuentaEfectivo.id,
+          monto: -montoNum,
+          fecha: fechaParsed,
+          descripcion: CONCEPTO_ETIQUETA[concepto],
+          trackerDiarioId: creado.id,
+        },
+      });
+      await tx.cuentaBancaria.update({
+        where: { id: cuentaEfectivo.id },
+        data: { saldoActual: { decrement: montoNum } },
+      });
+    }
+
+    return creado;
+  }, { timeout: 15000 });
 
   res.status(201).json({ registro });
 }
@@ -60,13 +93,23 @@ async function eliminar(req, res) {
   const id = Number(req.params.id);
   const existente = await prisma.trackerDiario.findUnique({
     where: { id },
-    include: { presupuesto: true },
+    include: { presupuesto: true, movimientoCuenta: true },
   });
   if (!existente || existente.presupuesto.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Registro no encontrado" });
   }
 
-  await prisma.trackerDiario.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    if (existente.movimientoCuenta) {
+      await tx.movimientoCuenta.delete({ where: { id: existente.movimientoCuenta.id } });
+      await tx.cuentaBancaria.update({
+        where: { id: existente.movimientoCuenta.cuentaId },
+        data: { saldoActual: { decrement: Number(existente.movimientoCuenta.monto) } },
+      });
+    }
+    await tx.trackerDiario.delete({ where: { id } });
+  }, { timeout: 15000 });
+
   res.status(204).send();
 }
 

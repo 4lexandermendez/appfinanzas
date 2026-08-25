@@ -1,6 +1,7 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
 const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
+const { redondear } = require("../utils/dinero");
 const { hoyElSalvador } = require("../utils/fecha");
 
 async function listarConfig(req, res) {
@@ -99,7 +100,10 @@ async function listarMensual(req, res) {
     where: { usuarioId_anio_mes: { usuarioId: req.usuarioId, anio, mes } },
   });
   const registrosMensuales = presupuesto
-    ? await prisma.gastoFijoMensual.findMany({ where: { presupuestoId: presupuesto.id } })
+    ? await prisma.gastoFijoMensual.findMany({
+        where: { presupuestoId: presupuesto.id },
+        include: { aportesExternos: true },
+      })
     : [];
   const registroPorConfig = new Map(registrosMensuales.map((r) => [r.gastoFijoConfigId, r]));
 
@@ -108,11 +112,12 @@ async function listarMensual(req, res) {
   for (const c of configTodos) {
     const registro = registroPorConfig.get(c.id);
     if (registro) {
+      const aportes = registro.aportesExternos.reduce((s, a) => s + Number(a.monto), 0);
       gastosFijos.push({
         gastoFijoConfigId: c.id,
         nombre: c.nombre,
         montoEstimado: registro.montoEstimado ?? c.montoEstimado,
-        montoReal: registro.montoReal,
+        montoReal: registro.montoReal !== null ? redondear(Number(registro.montoReal) - aportes) : null,
       });
     } else if (c.activo) {
       sugerencias.push({ gastoFijoConfigId: c.id, nombre: c.nombre, montoSugerido: c.montoEstimado });

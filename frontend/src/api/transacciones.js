@@ -1,8 +1,8 @@
 import client from "./client";
 
-export async function crearTransaccion({ categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos }) {
+export async function crearTransaccion({ categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId }) {
   const { data } = await client.post("/transacciones", {
-    categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos,
+    categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId,
   });
   return data.transaccion;
 }

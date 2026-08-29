@@ -1,6 +1,7 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
-const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
+const { obtenerCuentaEfectivo, validarCuentaPropia } = require("../services/cuentaEfectivoService");
+const { resolverCuentaDestinoReserva, ejecutarReserva } = require("../services/reservaTarjetaService");
 const { redondear } = require("../utils/dinero");
 const { hoyElSalvador } = require("../utils/fecha");
 
@@ -158,7 +159,7 @@ function parsearAportesExternos(aportesExternos, montoTotal) {
 // se pasa de tarjeta a efectivo, el movimiento se borra y se le devuelve el
 // monto a la tarjeta.
 async function guardarMensual(req, res) {
-  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos } = req.body;
+  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
 
   if (!gastoFijoConfigId || !anio || !mes) {
     return res.status(400).json({ error: "gastoFijoConfigId, anio y mes son requeridos" });
@@ -211,6 +212,27 @@ async function guardarMensual(req, res) {
   const aportesNum = parsearAportesExternos(aportesExternos, montoRealFinal);
   if (aportesNum === null) {
     return res.status(400).json({ error: "aportesExternos debe ser una lista de montos válidos que no superen el montoReal" });
+  }
+
+  // Apartar plata al momento de cargar a la tarjeta (opcional, solo la
+  // primera vez que se vincula — igual que en gasto variable): si se manda
+  // cuentaOrigenId, se transfiere el monto completo de ahi a la cuenta del
+  // banco de la tarjeta.
+  const fuenteFinalGF = fuente !== undefined ? fuente : existente?.fuente;
+  const tarjetaIdFinalGF = tarjetaId !== undefined ? (tarjetaId ? Number(tarjetaId) : null) : existente?.tarjetaId;
+  let reservaGF = null;
+  if (!existente?.movimientoTarjeta && fuenteFinalGF === "TARJETA" && tarjetaIdFinalGF && montoRealFinal > 0 && cuentaOrigenId) {
+    const cuentaOrigen = await validarCuentaPropia(req.usuarioId, Number(cuentaOrigenId));
+    if (!cuentaOrigen) return res.status(404).json({ error: "Cuenta origen no encontrada" });
+    if (montoRealFinal > Number(cuentaOrigen.saldoActual)) {
+      return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
+    }
+    const destino = await resolverCuentaDestinoReserva(tarjetaIdFinalGF, cuentaDestinoId ? Number(cuentaDestinoId) : null);
+    if (!destino.ok) return res.status(400).json({ error: destino.error, opciones: destino.opciones });
+    if (destino.cuenta.id === cuentaOrigen.id) {
+      return res.status(400).json({ error: "La cuenta origen y destino no pueden ser la misma" });
+    }
+    reservaGF = { cuentaOrigen, cuentaDestino: destino.cuenta };
   }
 
   const data = {};
@@ -271,6 +293,16 @@ async function guardarMensual(req, res) {
           },
         });
         await tx.tarjetaCredito.update({ where: { id: guardado.tarjetaId }, data: { saldoActual: { increment: montoFinal } } });
+        if (reservaGF) {
+          await ejecutarReserva(tx, {
+            cuentaOrigen: reservaGF.cuentaOrigen,
+            cuentaDestino: reservaGF.cuentaDestino,
+            monto: montoFinal,
+            descripcion: config.nombre,
+            fecha: hoyElSalvador(),
+            vinculo: { gastoFijoMensualId: guardado.id },
+          });
+        }
       }
     } else if (movimientoPrevio) {
       await tx.movimientoTarjeta.delete({ where: { id: movimientoPrevio.id } });

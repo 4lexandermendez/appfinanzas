@@ -29,6 +29,15 @@ export async function obtenerResumenPago() {
   return data.pendientes;
 }
 
+export async function obtenerPendienteApartar() {
+  const { data } = await client.get("/tarjetas/pendiente-apartar");
+  return data.pendientes;
+}
+
+export async function apartarAhora({ transaccionId, gastoFijoMensualId, cuentaOrigenId, cuentaDestinoId }) {
+  await client.post("/tarjetas/apartar-ahora", { transaccionId, gastoFijoMensualId, cuentaOrigenId, cuentaDestinoId });
+}
+
 export async function listarMovimientos(tarjetaId) {
   const { data } = await client.get(`/tarjetas/${tarjetaId}/movimientos`);
   return data.movimientos;

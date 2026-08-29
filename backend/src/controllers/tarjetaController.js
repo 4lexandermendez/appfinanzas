@@ -1,6 +1,7 @@
 const prisma = require("../lib/prisma");
 const { calcularInfoTarjeta, calcularMontoCicloVencido } = require("../services/tarjetaService");
 const { validarCuentaPropia } = require("../services/cuentaEfectivoService");
+const { resolverCuentaDestinoReserva, ejecutarReserva } = require("../services/reservaTarjetaService");
 const { hoyElSalvador } = require("../utils/fecha");
 
 async function listar(req, res) {
@@ -249,4 +250,131 @@ async function resumenPago(req, res) {
   res.json({ pendientes });
 }
 
-module.exports = { listar, crear, actualizar, eliminar, pagar, resumenPago };
+// Gastos con tarjeta que todavia no tienen la plata apartada — es decir,
+// cargados desde el ultimo pago, vinculados a una transaccion o gasto fijo
+// (los movimientos manuales sin vinculo quedan fuera, no hay gasto rastreado
+// que asociarles), y cuyo gasto vinculado no tiene un movimientoCuenta de
+// reserva. Es lo que le faltaria pasar el usuario a la cuenta del banco
+// correspondiente para no quedar debiendose plata a si mismo sin saberlo.
+async function pendienteApartar(req, res) {
+  const tarjetas = await prisma.tarjetaCredito.findMany({ where: { usuarioId: req.usuarioId } });
+  if (tarjetas.length === 0) return res.json({ pendientes: [] });
+
+  const movimientos = await prisma.movimientoTarjeta.findMany({
+    where: { tarjetaId: { in: tarjetas.map((t) => t.id) } },
+    orderBy: { id: "asc" },
+    include: {
+      transaccion: { include: { movimientoCuenta: true, categoria: true } },
+      gastoFijoMensual: { include: { movimientoCuenta: true, gastoFijoConfig: true } },
+    },
+  });
+
+  const nombrePorTarjeta = new Map(tarjetas.map((t) => [t.id, t.nombre]));
+  const movimientosPorTarjeta = new Map();
+  for (const m of movimientos) {
+    if (!movimientosPorTarjeta.has(m.tarjetaId)) movimientosPorTarjeta.set(m.tarjetaId, []);
+    movimientosPorTarjeta.get(m.tarjetaId).push(m);
+  }
+
+  const pendientes = [];
+  for (const [tarjetaId, movs] of movimientosPorTarjeta) {
+    const idUltimoPago = movs.filter((m) => Number(m.monto) < 0).reduce((max, m) => Math.max(max, m.id), 0);
+    for (const m of movs) {
+      if (m.id <= idUltimoPago || Number(m.monto) <= 0) continue;
+
+      let gasto = null;
+      let tipo = null;
+      if (m.transaccion) {
+        gasto = m.transaccion;
+        tipo = "transaccion";
+      } else if (m.gastoFijoMensual) {
+        gasto = m.gastoFijoMensual;
+        tipo = "gastoFijo";
+      } else {
+        continue;
+      }
+      if (gasto.movimientoCuenta) continue;
+
+      pendientes.push({
+        tarjetaId,
+        tarjetaNombre: nombrePorTarjeta.get(tarjetaId),
+        monto: Number(m.monto),
+        fecha: m.fecha,
+        descripcion: tipo === "transaccion" ? gasto.categoria.nombre : gasto.gastoFijoConfig.nombre,
+        transaccionId: tipo === "transaccion" ? gasto.id : null,
+        gastoFijoMensualId: tipo === "gastoFijo" ? gasto.id : null,
+      });
+    }
+  }
+
+  res.json({ pendientes });
+}
+
+// Aparta ahora la plata de un gasto con tarjeta que quedo pendiente (ver
+// pendienteApartar) — mismo mecanismo que se usa al crear el gasto, solo
+// que aplicado despues sobre uno que ya existe.
+async function apartarAhora(req, res) {
+  const { transaccionId, gastoFijoMensualId, cuentaOrigenId, cuentaDestinoId } = req.body;
+  if (!transaccionId && !gastoFijoMensualId) {
+    return res.status(400).json({ error: "transaccionId o gastoFijoMensualId es requerido" });
+  }
+  if (!cuentaOrigenId) {
+    return res.status(400).json({ error: "cuentaOrigenId es requerido" });
+  }
+
+  let gasto, tarjetaId, monto, descripcion, vinculo;
+  if (transaccionId) {
+    gasto = await prisma.transaccion.findUnique({
+      where: { id: Number(transaccionId) },
+      include: { presupuesto: true, categoria: true, movimientoCuenta: true },
+    });
+    if (!gasto || gasto.presupuesto.usuarioId !== req.usuarioId) return res.status(404).json({ error: "Gasto no encontrado" });
+    if (gasto.fuente !== "TARJETA" || !gasto.tarjetaId) return res.status(400).json({ error: "Este gasto no es de tarjeta" });
+    tarjetaId = gasto.tarjetaId;
+    monto = Number(gasto.monto);
+    descripcion = gasto.categoria.nombre;
+    vinculo = { transaccionId: gasto.id };
+  } else {
+    gasto = await prisma.gastoFijoMensual.findUnique({
+      where: { id: Number(gastoFijoMensualId) },
+      include: { presupuesto: true, gastoFijoConfig: true, movimientoCuenta: true },
+    });
+    if (!gasto || gasto.presupuesto.usuarioId !== req.usuarioId) return res.status(404).json({ error: "Gasto no encontrado" });
+    if (gasto.fuente !== "TARJETA" || !gasto.tarjetaId) return res.status(400).json({ error: "Este gasto no es de tarjeta" });
+    tarjetaId = gasto.tarjetaId;
+    monto = Number(gasto.montoReal);
+    descripcion = gasto.gastoFijoConfig.nombre;
+    vinculo = { gastoFijoMensualId: gasto.id };
+  }
+  if (gasto.movimientoCuenta) {
+    return res.status(400).json({ error: "Este gasto ya tiene la plata apartada" });
+  }
+
+  const cuentaOrigen = await validarCuentaPropia(req.usuarioId, Number(cuentaOrigenId));
+  if (!cuentaOrigen) return res.status(404).json({ error: "Cuenta origen no encontrada" });
+  if (monto > Number(cuentaOrigen.saldoActual)) {
+    return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
+  }
+  const destino = await resolverCuentaDestinoReserva(tarjetaId, cuentaDestinoId ? Number(cuentaDestinoId) : null);
+  if (!destino.ok) return res.status(400).json({ error: destino.error, opciones: destino.opciones });
+  if (destino.cuenta.id === cuentaOrigen.id) {
+    return res.status(400).json({ error: "La cuenta origen y destino no pueden ser la misma" });
+  }
+
+  await prisma.$transaction(
+    (tx) =>
+      ejecutarReserva(tx, {
+        cuentaOrigen,
+        cuentaDestino: destino.cuenta,
+        monto,
+        descripcion,
+        fecha: hoyElSalvador(),
+        vinculo,
+      }),
+    { timeout: 15000 }
+  );
+
+  res.status(204).send();
+}
+
+module.exports = { listar, crear, actualizar, eliminar, pagar, resumenPago, pendienteApartar, apartarAhora };

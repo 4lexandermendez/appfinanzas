@@ -7,7 +7,8 @@ import { listarEstimadoVariables } from "../api/categoriasVariablesMensual";
 import { crearTransaccion } from "../api/transacciones";
 import { listarGastosFijosMensual, guardarGastoFijoMensual } from "../api/gastosFijos";
 import { listarDeudasMensual } from "../api/deudas";
-import { listarTarjetas, obtenerResumenPago } from "../api/tarjetas";
+import { listarTarjetas, obtenerResumenPago, obtenerPendienteApartar, apartarAhora } from "../api/tarjetas";
+import { listarGruposCuenta } from "../api/gruposCuenta";
 import { hoyISO } from "../utils/fecha";
 
 const NUEVA_CATEGORIA = "__nueva__";
@@ -283,6 +284,11 @@ export default function RegistroRapidoPage() {
   const [saldoDisponible, setSaldoDisponible] = useState(null);
   const [deudaTotalPendiente, setDeudaTotalPendiente] = useState(null);
   const [pagosPendientesTarjetas, setPagosPendientesTarjetas] = useState([]);
+  const [pendienteApartar, setPendienteApartar] = useState([]);
+  const [mostrarPendienteApartar, setMostrarPendienteApartar] = useState(false);
+  const [apartandoId, setApartandoId] = useState(null);
+  const [cuentaParaApartar, setCuentaParaApartar] = useState("");
+  const [cuentaDestinoParaApartar, setCuentaDestinoParaApartar] = useState("");
   const [botones, setBotones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [estimadoVariables, setEstimadoVariables] = useState([]);
@@ -301,6 +307,9 @@ export default function RegistroRapidoPage() {
   const [fuentePago, setFuentePago] = useState("EFECTIVO");
   const [tarjetaId, setTarjetaId] = useState("");
   const [cuenta, setCuenta] = useState("");
+  const [cuentaOrigenId, setCuentaOrigenId] = useState("");
+  const [cuentaDestinoId, setCuentaDestinoId] = useState("");
+  const [todasLasCuentas, setTodasLasCuentas] = useState([]);
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [gastosFijosMesAnterior, setGastosFijosMesAnterior] = useState([]);
@@ -311,6 +320,8 @@ export default function RegistroRapidoPage() {
   const [fuentePagoFijo, setFuentePagoFijo] = useState("EFECTIVO");
   const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
   const [cuentaFijo, setCuentaFijo] = useState("");
+  const [cuentaOrigenIdFijo, setCuentaOrigenIdFijo] = useState("");
+  const [cuentaDestinoIdFijo, setCuentaDestinoIdFijo] = useState("");
 
   // Cada seccion se carga por separado (en vez de un solo Promise.all) para
   // que la que llega primero se pueda pintar ya — antes, si una tardaba mas
@@ -349,6 +360,9 @@ export default function RegistroRapidoPage() {
   // llenando el ciclo nuevo) y desaparece solo en cuanto se paga.
   async function cargarPagosPendientesTarjetas() {
     setPagosPendientesTarjetas(await obtenerResumenPago());
+  }
+  async function cargarPendienteApartar() {
+    setPendienteApartar(await obtenerPendienteApartar());
   }
   async function cargarCategorias() {
     setCategorias(await listarCategorias());
@@ -417,8 +431,32 @@ export default function RegistroRapidoPage() {
   // asi que se carga aparte una sola vez al entrar.
   useEffect(() => {
     cargarPagosPendientesTarjetas();
+    cargarPendienteApartar();
+    listarGruposCuenta().then((grupos) => {
+      setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleApartarAhora(item) {
+    if (!cuentaParaApartar) return;
+    try {
+      await apartarAhora({
+        transaccionId: item.transaccionId || undefined,
+        gastoFijoMensualId: item.gastoFijoMensualId || undefined,
+        cuentaOrigenId: Number(cuentaParaApartar),
+        cuentaDestinoId: cuentaDestinoParaApartar ? Number(cuentaDestinoParaApartar) : undefined,
+      });
+      setApartandoId(null);
+      setCuentaParaApartar("");
+      setCuentaDestinoParaApartar("");
+      cargarPendienteApartar();
+      const grupos = await listarGruposCuenta();
+      setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
+    } catch (err) {
+      setMensaje(err.response?.data?.error || "No se pudo apartar la plata");
+    }
+  }
 
   const diasConRegistro = useMemo(
     () => new Set(registrosMes.map((r) => r.fecha.slice(0, 10))),
@@ -515,6 +553,14 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige de cuál cuenta pagaste");
       return;
     }
+    if (fuentePago === "TARJETA" && cuentaOrigenId) {
+      const tarjetaSeleccionada = tarjetas.find((t) => t.id === Number(tarjetaId));
+      const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSeleccionada?.grupoId);
+      if (cuentasDelBanco.length > 1 && !cuentaDestinoId) {
+        setMensaje("Ese banco tiene varias cuentas — elegí a cuál apartar la plata");
+        return;
+      }
+    }
     const sumaExternos = aportesExternos.reduce((s, a) => s + (Number(a) || 0), 0);
     if (sumaExternos > Number(monto)) {
       setMensaje("Lo externo no puede ser más que el monto total");
@@ -531,6 +577,8 @@ export default function RegistroRapidoPage() {
         tarjetaId: fuentePago === "TARJETA" ? Number(tarjetaId) : undefined,
         cuenta: fuentePago === "CUENTA_BANCO" ? cuenta : undefined,
         aportesExternos: aportesExternos.filter((a) => a !== "").map(Number),
+        cuentaOrigenId: fuentePago === "TARJETA" && cuentaOrigenId ? Number(cuentaOrigenId) : undefined,
+        cuentaDestinoId: fuentePago === "TARJETA" && cuentaDestinoId ? Number(cuentaDestinoId) : undefined,
       });
       setMonto("");
       setAportesExternos([]);
@@ -539,8 +587,15 @@ export default function RegistroRapidoPage() {
       setFuentePago("EFECTIVO");
       setTarjetaId("");
       setCuenta("");
+      setCuentaOrigenId("");
+      setCuentaDestinoId("");
       cargarTodo();
-      if (fuentePago === "TARJETA") cargarPagosPendientesTarjetas();
+      if (fuentePago === "TARJETA") {
+        cargarPagosPendientesTarjetas();
+        listarGruposCuenta().then((grupos) => {
+          setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
+        });
+      }
       const totales = await obtenerGastadoHoy(fechaSeleccionada);
       setGastadoDia(totales.totalHoy);
       setMensaje("Gasto registrado");
@@ -566,6 +621,14 @@ export default function RegistroRapidoPage() {
       setMensaje("Elige de cuál cuenta pagaste");
       return;
     }
+    if (fuentePagoFijo === "TARJETA" && cuentaOrigenIdFijo) {
+      const tarjetaSeleccionada = tarjetas.find((t) => t.id === Number(tarjetaIdFijo));
+      const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSeleccionada?.grupoId);
+      if (cuentasDelBanco.length > 1 && !cuentaDestinoIdFijo) {
+        setMensaje("Ese banco tiene varias cuentas — elegí a cuál apartar la plata");
+        return;
+      }
+    }
     const sumaExternosFijo = aportesExternosFijo.reduce((s, a) => s + (Number(a) || 0), 0);
     if (sumaExternosFijo > Number(montoFijo)) {
       setMensaje("Lo externo no puede ser más que el monto total");
@@ -583,6 +646,8 @@ export default function RegistroRapidoPage() {
         tarjetaId: fuentePagoFijo === "TARJETA" ? Number(tarjetaIdFijo) : undefined,
         cuenta: fuentePagoFijo === "CUENTA_BANCO" ? cuentaFijo : undefined,
         aportesExternos: aportesExternosFijo.filter((a) => a !== "").map(Number),
+        cuentaOrigenId: fuentePagoFijo === "TARJETA" && cuentaOrigenIdFijo ? Number(cuentaOrigenIdFijo) : undefined,
+        cuentaDestinoId: fuentePagoFijo === "TARJETA" && cuentaDestinoIdFijo ? Number(cuentaDestinoIdFijo) : undefined,
       });
       setGastoFijoId("");
       setMontoFijo("");
@@ -590,7 +655,14 @@ export default function RegistroRapidoPage() {
       setFuentePagoFijo("EFECTIVO");
       setTarjetaIdFijo("");
       setCuentaFijo("");
-      if (fuentePagoFijo === "TARJETA") cargarPagosPendientesTarjetas();
+      setCuentaOrigenIdFijo("");
+      setCuentaDestinoIdFijo("");
+      if (fuentePagoFijo === "TARJETA") {
+        cargarPagosPendientesTarjetas();
+        listarGruposCuenta().then((grupos) => {
+          setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
+        });
+      }
       setMensaje("Gasto fijo marcado como pagado");
     } catch (err) {
       setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
@@ -618,6 +690,77 @@ export default function RegistroRapidoPage() {
             title="Total que aún debés (saldo pendiente de todas tus deudas activas)"
           >
             Debés ${deudaTotalPendiente.toFixed(2)}
+          </div>
+        )}
+        {pendienteApartar.length > 0 && (
+          <div className="absolute top-12 right-3 text-left">
+            <button
+              onClick={() => setMostrarPendienteApartar((v) => !v)}
+              className="text-xs font-semibold text-amber-600 hover:underline"
+              title="Gastos con tarjeta a los que todavía no le apartaste la plata"
+            >
+              Por apartar ${pendienteApartar.reduce((s, p) => s + p.monto, 0).toFixed(2)}
+            </button>
+            {mostrarPendienteApartar && (
+              <div className="mt-1 bg-white border border-gray-200 rounded shadow-lg p-2 w-64 max-h-72 overflow-y-auto space-y-2 z-20 relative">
+                {pendienteApartar.map((item) => {
+                  const key = item.transaccionId ? `t${item.transaccionId}` : `g${item.gastoFijoMensualId}`;
+                  const tarjeta = tarjetas.find((t) => t.id === item.tarjetaId);
+                  const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjeta?.grupoId);
+                  return (
+                    <div key={key} className="text-xs border-b border-gray-100 pb-2 last:border-0">
+                      <div className="flex justify-between text-gray-700">
+                        <span>{item.descripcion} ({item.tarjetaNombre})</span>
+                        <span className="font-semibold">${item.monto.toFixed(2)}</span>
+                      </div>
+                      {apartandoId === key ? (
+                        <div className="mt-1 flex flex-col gap-1">
+                          <select
+                            value={cuentaParaApartar}
+                            onChange={(e) => setCuentaParaApartar(e.target.value)}
+                            className="border border-gray-300 rounded px-1 py-0.5 text-xs"
+                          >
+                            <option value="">-- De dónde --</option>
+                            {todasLasCuentas.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                              </option>
+                            ))}
+                          </select>
+                          {cuentaParaApartar && cuentasDelBanco.length > 1 && (
+                            <select
+                              value={cuentaDestinoParaApartar}
+                              onChange={(e) => setCuentaDestinoParaApartar(e.target.value)}
+                              className="border border-gray-300 rounded px-1 py-0.5 text-xs"
+                            >
+                              <option value="">-- ¿A cuál cuenta? --</option>
+                              {cuentasDelBanco.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                              ))}
+                            </select>
+                          )}
+                          <div className="flex gap-2">
+                            <button onClick={() => handleApartarAhora(item)} className="text-purple-600 font-medium hover:underline">
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => { setApartandoId(null); setCuentaParaApartar(""); setCuentaDestinoParaApartar(""); }}
+                              className="text-gray-400 hover:underline"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setApartandoId(key)} className="text-purple-600 hover:underline mt-0.5">
+                          Apartar ahora
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         {pagosPendientesTarjetas.length > 0 && (
@@ -820,6 +963,39 @@ export default function RegistroRapidoPage() {
                 ))}
               </select>
             )}
+            {fuentePago === "TARJETA" && tarjetaId && (() => {
+              const tarjetaSel = tarjetas.find((t) => t.id === Number(tarjetaId));
+              const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSel?.grupoId);
+              return (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <select
+                    value={cuentaOrigenId}
+                    onChange={(e) => setCuentaOrigenId(e.target.value)}
+                    title="De qué cuenta apartar la plata para pagar esta tarjeta (opcional)"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                  >
+                    <option value="">Apartar de... (opcional)</option>
+                    {todasLasCuentas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                      </option>
+                    ))}
+                  </select>
+                  {cuentaOrigenId && cuentasDelBanco.length > 1 && (
+                    <select
+                      value={cuentaDestinoId}
+                      onChange={(e) => setCuentaDestinoId(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                    >
+                      <option value="">-- ¿A cuál cuenta de {tarjetaSel?.nombre.split(" ")[0]}? --</option>
+                      {cuentasDelBanco.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              );
+            })()}
             {fuentePago === "CUENTA_BANCO" && (
               <select
                 value={cuenta}
@@ -911,6 +1087,39 @@ export default function RegistroRapidoPage() {
                 ))}
               </select>
             )}
+            {fuentePagoFijo === "TARJETA" && tarjetaIdFijo && (() => {
+              const tarjetaSel = tarjetas.find((t) => t.id === Number(tarjetaIdFijo));
+              const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSel?.grupoId);
+              return (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <select
+                    value={cuentaOrigenIdFijo}
+                    onChange={(e) => setCuentaOrigenIdFijo(e.target.value)}
+                    title="De qué cuenta apartar la plata para pagar esta tarjeta (opcional)"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                  >
+                    <option value="">Apartar de... (opcional)</option>
+                    {todasLasCuentas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                      </option>
+                    ))}
+                  </select>
+                  {cuentaOrigenIdFijo && cuentasDelBanco.length > 1 && (
+                    <select
+                      value={cuentaDestinoIdFijo}
+                      onChange={(e) => setCuentaDestinoIdFijo(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                    >
+                      <option value="">-- ¿A cuál cuenta de {tarjetaSel?.nombre.split(" ")[0]}? --</option>
+                      {cuentasDelBanco.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              );
+            })()}
             {fuentePagoFijo === "CUENTA_BANCO" && (
               <select
                 value={cuentaFijo}

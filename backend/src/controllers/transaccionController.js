@@ -1,6 +1,7 @@
 const prisma = require("../lib/prisma");
 const { obtenerOCrearPresupuesto } = require("../services/presupuestoService");
-const { obtenerCuentaEfectivo } = require("../services/cuentaEfectivoService");
+const { obtenerCuentaEfectivo, validarCuentaPropia } = require("../services/cuentaEfectivoService");
+const { resolverCuentaDestinoReserva, ejecutarReserva } = require("../services/reservaTarjetaService");
 
 const FUENTES_VALIDAS = ["EFECTIVO", "TARJETA", "CUENTA_BANCO", "EXTERNO"];
 const CUENTAS_VALIDAS = ["CUSCATLAN", "MULTIMONEY", "BAC", "AGRICOLA_PRINCIPAL", "AGRICOLA_SECUNDARIA"];
@@ -63,7 +64,7 @@ async function listar(req, res) {
 }
 
 async function crear(req, res) {
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
 
   if (!categoriaId || monto === undefined || !fecha) {
     return res.status(400).json({ error: "categoriaId, monto y fecha son requeridos" });
@@ -103,6 +104,26 @@ async function crear(req, res) {
   const mes = fechaParsed.getUTCMonth() + 1;
   const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, anio, mes);
   const cuentaEfectivo = fuenteFinal === "EFECTIVO" ? await obtenerCuentaEfectivo(req.usuarioId) : null;
+
+  // Apartar plata al momento de cargar a la tarjeta (opcional): si se manda
+  // cuentaOrigenId, se transfiere el monto completo de ahi a la cuenta del
+  // banco de la tarjeta (auto-detectada si ese banco tiene una sola cuenta,
+  // o la indicada en cuentaDestinoId si tiene varias) — es el mismo paso
+  // manual de "Transferir" que ya se hacia despues, ahora automatico.
+  let reserva = null;
+  if (fuenteFinal === "TARJETA" && cuentaOrigenId) {
+    const cuentaOrigen = await validarCuentaPropia(req.usuarioId, Number(cuentaOrigenId));
+    if (!cuentaOrigen) return res.status(404).json({ error: "Cuenta origen no encontrada" });
+    if (montoNum > Number(cuentaOrigen.saldoActual)) {
+      return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
+    }
+    const destino = await resolverCuentaDestinoReserva(Number(tarjetaId), cuentaDestinoId ? Number(cuentaDestinoId) : null);
+    if (!destino.ok) return res.status(400).json({ error: destino.error, opciones: destino.opciones });
+    if (destino.cuenta.id === cuentaOrigen.id) {
+      return res.status(400).json({ error: "La cuenta origen y destino no pueden ser la misma" });
+    }
+    reserva = { cuentaOrigen, cuentaDestino: destino.cuenta };
+  }
 
   // Si se paga con tarjeta, ademas de la transaccion se crea el movimiento
   // en la tarjeta (vinculado via transaccionId) y se suma el monto al saldo
@@ -146,6 +167,16 @@ async function crear(req, res) {
         where: { id: creada.tarjetaId },
         data: { saldoActual: { increment: montoNum } },
       });
+      if (reserva) {
+        await ejecutarReserva(tx, {
+          cuentaOrigen: reserva.cuentaOrigen,
+          cuentaDestino: reserva.cuentaDestino,
+          monto: montoNum,
+          descripcion: creada.categoria.nombre,
+          fecha: fechaParsed,
+          vinculo: { transaccionId: creada.id },
+        });
+      }
     } else if (fuenteFinal === "EFECTIVO" && cuentaEfectivo) {
       await tx.movimientoCuenta.create({
         data: {

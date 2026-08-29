@@ -350,4 +350,56 @@ async function guardarMensual(req, res) {
   res.json({ registro });
 }
 
-module.exports = { listarConfig, crearConfig, actualizarConfig, eliminarConfig, listarMensual, guardarMensual };
+// Quita SOLO el registro de este mes (estimado + real + fuente + vinculos)
+// sin tocar el GastoFijoConfig ni otros meses — a diferencia de eliminarConfig
+// (boton rojo), esto es reversible con solo volver a agregarlo el mes que
+// entra, y el gasto sigue apareciendo como sugerencia despues. Si tenia un
+// movimiento de tarjeta o de cuenta vinculado (ya pagado con tarjeta o
+// efectivo), se revierte el saldo correspondiente antes de borrar, igual
+// que al eliminar una transaccion.
+async function eliminarMensual(req, res) {
+  const gastoFijoConfigId = Number(req.params.gastoFijoConfigId);
+  const anio = Number(req.query.anio);
+  const mes = Number(req.query.mes);
+  if (!anio || !mes || mes < 1 || mes > 12) {
+    return res.status(400).json({ error: "anio y mes son requeridos (mes entre 1 y 12)" });
+  }
+
+  const config = await prisma.gastoFijoConfig.findUnique({ where: { id: gastoFijoConfigId } });
+  if (!config || config.usuarioId !== req.usuarioId) {
+    return res.status(404).json({ error: "Gasto fijo no encontrado" });
+  }
+
+  const presupuesto = await prisma.presupuestoMensual.findUnique({
+    where: { usuarioId_anio_mes: { usuarioId: req.usuarioId, anio, mes } },
+  });
+  if (!presupuesto) return res.status(204).send();
+
+  const existente = await prisma.gastoFijoMensual.findUnique({
+    where: { presupuestoId_gastoFijoConfigId: { presupuestoId: presupuesto.id, gastoFijoConfigId } },
+    include: { movimientoTarjeta: true, movimientoCuenta: true },
+  });
+  if (!existente) return res.status(204).send();
+
+  await prisma.$transaction(async (tx) => {
+    if (existente.movimientoTarjeta) {
+      await tx.movimientoTarjeta.delete({ where: { id: existente.movimientoTarjeta.id } });
+      await tx.tarjetaCredito.update({
+        where: { id: existente.movimientoTarjeta.tarjetaId },
+        data: { saldoActual: { decrement: Number(existente.movimientoTarjeta.monto) } },
+      });
+    }
+    if (existente.movimientoCuenta) {
+      await tx.movimientoCuenta.delete({ where: { id: existente.movimientoCuenta.id } });
+      await tx.cuentaBancaria.update({
+        where: { id: existente.movimientoCuenta.cuentaId },
+        data: { saldoActual: { decrement: Number(existente.movimientoCuenta.monto) } },
+      });
+    }
+    await tx.gastoFijoMensual.delete({ where: { id: existente.id } });
+  }, { timeout: 15000 });
+
+  res.status(204).send();
+}
+
+module.exports = { listarConfig, crearConfig, actualizarConfig, eliminarConfig, listarMensual, guardarMensual, eliminarMensual };

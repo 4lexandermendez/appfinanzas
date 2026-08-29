@@ -8,7 +8,7 @@ import {
 } from "../api/ahorros";
 import {
   crearGastoFijo, actualizarGastoFijo, eliminarGastoFijo,
-  listarGastosFijosMensual, guardarGastoFijoMensual,
+  listarGastosFijosMensual, guardarGastoFijoMensual, quitarGastoFijoMensual,
 } from "../api/gastosFijos";
 import {
   listarDeudasMensual, crearDeuda, actualizarDeuda, eliminarDeuda, guardarDeudaMensual,
@@ -189,8 +189,19 @@ export default function PresupuestoPage() {
     await actualizarGastoFijo(id, { activo: false });
     cargarTodo();
   }
+  // Quita solo el registro de este mes (reversible, no toca el gasto fijo
+  // ni su historial de otros meses) — es lo que hace el boton morado.
+  async function handleQuitarGastoFijoMensual(gastoFijoConfigId) {
+    await quitarGastoFijoMensual(gastoFijoConfigId, anio, mes);
+    cargarTodo();
+  }
+  // Eliminar el gasto fijo completo (boton rojo) es destructivo: borra
+  // tambien el historial de todos los meses, por eso pide confirmar en dos
+  // pasos en vez de un solo click.
+  const [confirmandoEliminarGastoFijo, setConfirmandoEliminarGastoFijo] = useState(null);
   async function handleEliminarGastoFijo(id) {
     await eliminarGastoFijo(id);
+    setConfirmandoEliminarGastoFijo(null);
     cargarTodo();
   }
   async function handleRealGastoFijo(gastoFijoConfigId, montoReal) {
@@ -430,16 +441,41 @@ export default function PresupuestoPage() {
                     defaultValue={g.montoReal ?? ""}
                     onBlur={(e) => handleRealGastoFijo(g.gastoFijoConfigId, e.target.value)}
                   />
-                  <button
-                    onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}
-                    title="Desactivar"
-                    className="text-purple-600 hover:text-purple-800"
-                  >
-                    <IconoDesactivar />
-                  </button>
-                  <button onClick={() => handleEliminarGastoFijo(g.gastoFijoConfigId)} title="Eliminar" className="text-red-500 hover:text-red-700">
-                    <IconoEliminar />
-                  </button>
+                  {confirmandoEliminarGastoFijo === g.gastoFijoConfigId ? (
+                    <span className="flex items-center gap-1 text-xs shrink-0">
+                      <span className="text-gray-500">¿Seguro?</span>
+                      <button onClick={() => handleEliminarGastoFijo(g.gastoFijoConfigId)} className="text-red-600 font-medium hover:underline">
+                        Sí
+                      </button>
+                      <button onClick={() => setConfirmandoEliminarGastoFijo(null)} className="text-gray-500 hover:underline">
+                        No
+                      </button>
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleQuitarGastoFijoMensual(g.gastoFijoConfigId)}
+                        title="Quitar de este mes (no borra el gasto fijo ni su historial)"
+                        className="text-purple-600 hover:text-purple-800"
+                      >
+                        <IconoDesactivar />
+                      </button>
+                      <button
+                        onClick={() => setConfirmandoEliminarGastoFijo(g.gastoFijoConfigId)}
+                        title="Eliminar el gasto fijo (borra también el historial de todos los meses)"
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <IconoEliminar />
+                      </button>
+                      <button
+                        onClick={() => handleDesactivarGastoFijo(g.gastoFijoConfigId)}
+                        title="Dejar de sugerirlo en meses futuros (no borra nada de lo ya registrado)"
+                        className="text-gray-400 hover:text-gray-600 text-xs shrink-0"
+                      >
+                        Desactivar
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
               {gastosFijos.length === 0 && <p className="text-sm text-gray-400">Sin gastos fijos agregados este mes</p>}

@@ -19,6 +19,10 @@ export async function eliminarGastoFijo(id) {
   await client.delete(`/gastos-fijos/${id}`);
 }
 
+export async function quitarGastoFijoMensual(gastoFijoConfigId, anio, mes) {
+  await client.delete(`/gastos-fijos/mensual/${gastoFijoConfigId}`, { params: { anio, mes } });
+}
+
 export async function listarGastosFijosMensual(anio, mes) {
   const { data } = await client.get("/gastos-fijos/mensual", { params: { anio, mes } });
   return data;

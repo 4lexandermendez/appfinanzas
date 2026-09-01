@@ -11,3 +11,15 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Safari en iPhone hace zoom automatico al enfocar un input/select/textarea
+   con letra menor a 16px, y a veces no vuelve a acercar bien al salir — se
+   evita subiendo el tamano de letra de los campos solo en pantallas de
+   celular, sin afectar el diseno en escritorio. */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Zap, Calendar, BarChart3, Wallet, CreditCard, Settings, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -80,6 +80,25 @@ export default function Layout() {
   function cerrar() {
     setAbierto(false);
   }
+
+  // Refuerzo para el zoom pegado de Safari en iPhone: a veces, aunque el
+  // input ya tenga letra de 16px, Safari se queda con el zoom aplicado al
+  // salir del campo. Este truco fuerza a Safari a re-evaluar el viewport
+  // justo al salir de cualquier input/select/textarea, lo que lo hace
+  // regresar al tamano normal. No tiene efecto visible en otros navegadores.
+  useEffect(() => {
+    function alSalirDeCampo(e) {
+      const tag = e.target.tagName;
+      if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA") return;
+      const viewport = document.querySelector('meta[name="viewport"]');
+      if (!viewport) return;
+      const original = viewport.getAttribute("content");
+      viewport.setAttribute("content", `${original}, maximum-scale=1.0`);
+      setTimeout(() => viewport.setAttribute("content", original), 300);
+    }
+    document.addEventListener("focusout", alSalirDeCampo);
+    return () => document.removeEventListener("focusout", alSalirDeCampo);
+  }, []);
 
   const tituloActual = TITULOS[location.pathname] ?? "Finanzas Personales";
 

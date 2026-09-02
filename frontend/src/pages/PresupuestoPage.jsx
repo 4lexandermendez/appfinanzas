@@ -115,8 +115,12 @@ export default function PresupuestoPage() {
   const [cuentas, setCuentas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  async function cargarTodo() {
-    setCargando(true);
+  // conCargando solo se pone en true en la carga inicial (o al cambiar de
+  // mes) — el resto de las veces (despues de guardar algo) se refresca la
+  // data por detras sin volver a mostrar la pantalla de "Cargando...", que
+  // era molesto porque tapaba toda la pagina en cada guardado.
+  async function cargarTodo(conCargando = false) {
+    if (conCargando) setCargando(true);
     const [i, a, gf, d, ev, grupos] = await Promise.all([
       listarIngresos(anio, mes),
       listarAhorros(anio, mes),
@@ -140,11 +144,11 @@ export default function PresupuestoPage() {
     setEstimadoVariables(
       ev.filter((c) => !c.esDefault && (c.montoEstimado !== null || Number(c.montoReal) > 0))
     );
-    setCargando(false);
+    if (conCargando) setCargando(false);
   }
 
   useEffect(() => {
-    cargarTodo();
+    cargarTodo(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anio, mes]);
 

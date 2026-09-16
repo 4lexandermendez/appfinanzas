@@ -266,8 +266,10 @@ function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, t
   );
 }
 
-const GRADOS_POR_MONTO = 28; // ruedita mas espaciada que la de fechas, hay pocos montos
-const RADIO_RUEDA_MONTO = 95;
+// Angulo grande a proposito: con pocos items (4-5) hay que separarlos mas
+// que los dias para que los botones (w-12 = 48px) no se encimen entre si.
+const GRADOS_POR_MONTO = 42;
+const RADIO_RUEDA_MONTO = 80;
 
 // Mismo mecanismo de arrastre/rotacion que SelectorFechaRueda, pero para
 // montos: a diferencia de las fechas (donde "seleccionar" solo cambia que
@@ -336,12 +338,12 @@ function SelectorMontoRueda({ montos, onSeleccionar, deshabilitado }) {
             disabled={deshabilitado}
             onClick={() => handleClickMonto(m, i)}
             style={{
-              transform: `translate(${offsetX - 28}px, -50%) scaleX(${escalaX})`,
+              transform: `translate(${offsetX - 24}px, -50%) scaleX(${escalaX})`,
               opacity: opacidad,
               filter: `brightness(${0.55 + 0.45 * escalaX})`,
               zIndex: Math.round(1000 - anguloAbs),
             }}
-            className={`absolute left-1/2 top-1/2 flex items-center justify-center w-14 h-11 rounded-lg text-sm font-semibold disabled:opacity-50 ${
+            className={`absolute left-1/2 top-1/2 flex items-center justify-center w-12 h-10 rounded-lg text-sm font-semibold disabled:opacity-50 ${
               alFrente ? "bg-purple-600 text-white" : "text-gray-500"
             }`}
           >

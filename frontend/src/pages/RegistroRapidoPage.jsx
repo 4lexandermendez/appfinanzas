@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bus, Coffee, Utensils } from "lucide-react";
+import { Bus, Coffee, Utensils, Pencil, Volume2, VolumeX } from "lucide-react";
+import { activarAudio, tic, din } from "../utils/sonidos";
 import { obtenerGastadoHoy, obtenerResumenMes, obtenerRealAlInicioMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker, obtenerEstimadoMes } from "../api/tracker";
@@ -266,31 +267,43 @@ function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, t
   );
 }
 
-// Angulo grande a proposito: con pocos items (4-5) hay que separarlos mas
-// que los dias para que los botones (w-12 = 48px) no se encimen entre si.
-const GRADOS_POR_MONTO = 42;
-const RADIO_RUEDA_MONTO = 80;
+// Angulo grande a proposito: con pocos items (4-6) hay que separarlos mas
+// que los dias para que los botones (52px) no se encimen entre si.
+const GRADOS_POR_MONTO = 40;
+const RADIO_RUEDA_MONTO = 78;
+const SENSIBILIDAD_ARRASTRE_MONTO = GRADOS_POR_MONTO / 55;
 
 // Mismo mecanismo de arrastre/rotacion que SelectorFechaRueda, pero para
 // montos: a diferencia de las fechas (donde "seleccionar" solo cambia que
 // dia se ve, sin efecto real), acá seleccionar SI registra un gasto de
 // verdad — por eso soltar el arrastre solo reacomoda la ruedita (no
 // registra nada), y unicamente el tap directo sobre un monto lo registra.
-function SelectorMontoRueda({ montos, onSeleccionar, deshabilitado }) {
+// La ultima parada es "Otro" (lapiz), que abre un campo para escribir un
+// monto que no este guardado.
+function SelectorMontoRueda({ montos, onSeleccionar, onOtro, deshabilitado, sonido }) {
+  const opciones = useMemo(() => [...montos.map((m) => ({ tipo: "monto", valor: m })), { tipo: "otro" }], [montos]);
   const [angulo, setAngulo] = useState(0);
   const anguloRef = useRef(0);
   const arrastreRef = useRef(null);
-  const anguloMax = Math.max(0, (montos.length - 1) * GRADOS_POR_MONTO);
+  const ultimoIdxRef = useRef(0);
+  const anguloMax = (opciones.length - 1) * GRADOS_POR_MONTO;
 
   useEffect(() => {
     anguloRef.current = 0;
+    ultimoIdxRef.current = 0;
     setAngulo(0);
-  }, [montos.length]);
+  }, [opciones.length]);
 
   function fijarAngulo(valor) {
     const limitado = Math.max(0, Math.min(anguloMax, valor));
     anguloRef.current = limitado;
     setAngulo(limitado);
+    // Un tic cada vez que el frente de la rueda cruza a otra parada.
+    const idx = Math.round(limitado / GRADOS_POR_MONTO);
+    if (idx !== ultimoIdxRef.current) {
+      ultimoIdxRef.current = idx;
+      if (sonido) tic();
+    }
   }
   function handlePointerDown(e) {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -299,58 +312,63 @@ function SelectorMontoRueda({ montos, onSeleccionar, deshabilitado }) {
   function handlePointerMove(e) {
     if (!arrastreRef.current) return;
     const dx = e.clientX - arrastreRef.current.x;
-    fijarAngulo(arrastreRef.current.anguloInicial - dx * SENSIBILIDAD_ARRASTRE);
+    fijarAngulo(arrastreRef.current.anguloInicial - dx * SENSIBILIDAD_ARRASTRE_MONTO);
   }
   function handlePointerUp() {
     if (!arrastreRef.current) return;
     arrastreRef.current = null;
-    const idx = Math.max(0, Math.min(montos.length - 1, Math.round(anguloRef.current / GRADOS_POR_MONTO)));
+    const idx = Math.max(0, Math.min(opciones.length - 1, Math.round(anguloRef.current / GRADOS_POR_MONTO)));
     fijarAngulo(idx * GRADOS_POR_MONTO);
   }
-  function handleClickMonto(m, idx) {
+  function handleClick(op, idx) {
     fijarAngulo(idx * GRADOS_POR_MONTO);
-    onSeleccionar(m);
+    if (op.tipo === "otro") onOtro();
+    else onSeleccionar(op.valor);
   }
 
   return (
-    <div
-      className="relative isolate h-14 select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-    >
-      {montos.map((m, i) => {
-        const anguloItem = i * GRADOS_POR_MONTO - angulo;
-        const anguloAbs = Math.abs(anguloItem);
-        if (anguloAbs > 90) return null;
+    <div className="relative">
+      <div
+        className="relative isolate h-[60px] select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {opciones.map((op, i) => {
+          const anguloItem = i * GRADOS_POR_MONTO - angulo;
+          const anguloAbs = Math.abs(anguloItem);
+          if (anguloAbs > 95) return null;
 
-        const rad = (anguloItem * Math.PI) / 180;
-        const offsetX = Math.sin(rad) * RADIO_RUEDA_MONTO;
-        const escalaX = Math.max(0.06, Math.cos(rad));
-        const opacidad = Math.max(0, escalaX - 0.06);
-        const alFrente = anguloAbs < GRADOS_POR_MONTO / 2;
+          const rad = (anguloItem * Math.PI) / 180;
+          const offsetX = Math.sin(rad) * RADIO_RUEDA_MONTO;
+          const escalaX = Math.max(0.08, Math.cos(rad));
+          const opacidad = Math.max(0, escalaX - 0.05);
+          const alFrente = anguloAbs < GRADOS_POR_MONTO / 2;
 
-        return (
-          <button
-            key={m}
-            type="button"
-            disabled={deshabilitado}
-            onClick={() => handleClickMonto(m, i)}
-            style={{
-              transform: `translate(${offsetX - 24}px, -50%) scaleX(${escalaX})`,
-              opacity: opacidad,
-              filter: `brightness(${0.55 + 0.45 * escalaX})`,
-              zIndex: Math.round(1000 - anguloAbs),
-            }}
-            className={`absolute left-1/2 top-1/2 flex items-center justify-center w-12 h-10 rounded-lg text-sm font-semibold disabled:opacity-50 ${
-              alFrente ? "bg-purple-600 text-white" : "text-gray-500"
-            }`}
-          >
-            ${m.toFixed(2)}
-          </button>
-        );
-      })}
+          return (
+            <button
+              key={op.tipo === "otro" ? "otro" : op.valor}
+              type="button"
+              disabled={deshabilitado}
+              title={op.tipo === "otro" ? "Otro monto" : undefined}
+              onClick={() => handleClick(op, i)}
+              style={{
+                transform: `translate(${offsetX - 26}px, -50%) scaleX(${escalaX})`,
+                opacity: opacidad,
+                filter: `brightness(${0.6 + 0.4 * escalaX})`,
+                zIndex: Math.round(1000 - anguloAbs),
+              }}
+              className={`absolute left-1/2 top-1/2 flex items-center justify-center w-[52px] h-[42px] rounded-xl text-sm font-bold tabular-nums disabled:opacity-50 ${
+                alFrente ? "bg-purple-600 text-white" : "text-gray-400"
+              }`}
+            >
+              {op.tipo === "otro" ? <Pencil className="w-4 h-4" /> : `$${op.valor.toFixed(2)}`}
+            </button>
+          );
+        })}
+      </div>
+      <div className="absolute left-1/2 bottom-0.5 w-1 h-1 rounded-full bg-purple-300 -translate-x-1/2" />
     </div>
   );
 }
@@ -389,6 +407,27 @@ export default function RegistroRapidoPage() {
   // Cual concepto (PASAJE_IDA, DESAYUNO, ...) tiene la ruedita de montos
   // abierta ahorita mismo — null si todos estan colapsados a solo su icono.
   const [conceptoExpandido, setConceptoExpandido] = useState(null);
+  // El campo "Otro" solo aparece al tocar la parada del lapiz en la rueda.
+  const [mostrarOtro, setMostrarOtro] = useState(false);
+  // Sonido de la rueda (tic al girar, din al elegir). Se recuerda en este
+  // navegador; si el telefono esta en silencio no suena igual.
+  const [sonido, setSonido] = useState(() => {
+    try {
+      return localStorage.getItem("botonesRapidosSonido") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  function toggleSonido() {
+    setSonido((v) => {
+      try {
+        localStorage.setItem("botonesRapidosSonido", v ? "0" : "1");
+      } catch {
+        // sin storage, solo dura la sesion
+      }
+      return !v;
+    });
+  }
 
   const [categoriaId, setCategoriaId] = useState(null);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
@@ -919,7 +958,18 @@ export default function RegistroRapidoPage() {
       )}
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-700">Botones rápidos</h2>
+          <button
+            type="button"
+            onClick={toggleSonido}
+            title={sonido ? "Silenciar la rueda" : "Activar sonido de la rueda"}
+            aria-label={sonido ? "Silenciar la rueda" : "Activar sonido de la rueda"}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            {sonido ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+        </div>
 
         <div className="flex items-center justify-around">
           {CONCEPTOS.map((c) => {
@@ -930,8 +980,12 @@ export default function RegistroRapidoPage() {
                 type="button"
                 title={c.etiqueta}
                 aria-label={c.etiqueta}
-                onClick={() => setConceptoExpandido(activo ? null : c.valor)}
-                className={`flex items-center justify-center w-14 h-14 rounded-xl transition-colors ${
+                onClick={() => {
+                  activarAudio();
+                  setMostrarOtro(false);
+                  setConceptoExpandido(activo ? null : c.valor);
+                }}
+                className={`flex items-center justify-center w-14 h-14 rounded-xl transition-colors active:scale-95 ${
                   activo ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -952,14 +1006,20 @@ export default function RegistroRapidoPage() {
             const registrosConcepto = registrosDelConcepto(conceptoExpandido);
             const valorLibre = montosLibres[conceptoExpandido] ?? "";
 
-            async function handleSeleccionRueda(m) {
-              await handleBoton(conceptoExpandido, m);
+            function cerrar() {
+              setMostrarOtro(false);
               setConceptoExpandido(null);
+            }
+            async function handleSeleccionRueda(m) {
+              if (sonido) din();
+              await handleBoton(conceptoExpandido, m);
+              cerrar();
             }
             async function handleOkLibre() {
               if (valorLibre === "") return;
+              if (sonido) din();
               await handleMontoLibre(conceptoExpandido);
-              setConceptoExpandido(null);
+              cerrar();
             }
 
             return (
@@ -968,26 +1028,32 @@ export default function RegistroRapidoPage() {
                 <SelectorMontoRueda
                   montos={opciones}
                   onSeleccionar={handleSeleccionRueda}
+                  onOtro={() => setMostrarOtro(true)}
                   deshabilitado={!!registrando}
+                  sonido={sonido}
                 />
-                <div className="flex items-center justify-center gap-1 mt-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Otro"
-                    value={valorLibre}
-                    onChange={(e) => setMontosLibres((prev) => ({ ...prev, [conceptoExpandido]: e.target.value }))}
-                    className="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleOkLibre}
-                    className="px-3 py-1.5 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
-                  >
-                    OK
-                  </button>
-                </div>
+                {mostrarOtro && (
+                  <div className="flex items-center justify-center gap-2 mt-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Monto"
+                      autoFocus
+                      value={valorLibre}
+                      onChange={(e) => setMontosLibres((prev) => ({ ...prev, [conceptoExpandido]: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleOkLibre()}
+                      className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleOkLibre}
+                      className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700"
+                    >
+                      OK
+                    </button>
+                  </div>
+                )}
 
                 {registrosConcepto.length > 0 && (
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-3">

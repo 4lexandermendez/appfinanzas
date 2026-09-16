@@ -67,4 +67,31 @@ async function resumenAnualCompleto(req, res) {
   res.json(resultado);
 }
 
-module.exports = { hoy, resumenMes, resumenAnualCompleto };
+// Plata real (cuentas marcadas "Principal", ej. BAC + Efectivo) que ya
+// habia el dia 1 del mes pedido, antes de cualquier ingreso/gasto de ese
+// mes. El widget de Saldo lo usa como punto de partida en vez de arrancar
+// de cero cada mes — asi, mientras no haya un apartado tardio o un
+// prestamo de tarjeta sin reponer, Saldo y Real terminan coincidiendo.
+async function realAlInicioMes(req, res) {
+  const anio = Number(req.query.anio);
+  const mes = Number(req.query.mes);
+  if (!anio || !mes || mes < 1 || mes > 12) {
+    return res.status(400).json({ error: "anio y mes son requeridos (mes entre 1 y 12)" });
+  }
+  const inicioMes = new Date(Date.UTC(anio, mes - 1, 1));
+
+  const cuentas = await prisma.cuentaBancaria.findMany({
+    where: { grupo: { usuarioId: req.usuarioId }, esPrincipal: true },
+    select: { id: true },
+  });
+  if (cuentas.length === 0) return res.json({ real: null });
+
+  const movimientos = await prisma.movimientoCuenta.findMany({
+    where: { cuentaId: { in: cuentas.map((c) => c.id) }, fecha: { lt: inicioMes } },
+    select: { monto: true },
+  });
+  const real = redondear(movimientos.reduce((s, m) => s + Number(m.monto), 0));
+  res.json({ real });
+}
+
+module.exports = { hoy, resumenMes, resumenAnualCompleto, realAlInicioMes };

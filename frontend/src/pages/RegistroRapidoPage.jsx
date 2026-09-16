@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { obtenerGastadoHoy, obtenerResumenMes } from "../api/dashboard";
+import { obtenerGastadoHoy, obtenerResumenMes, obtenerRealAlInicioMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker, obtenerEstimadoMes } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
@@ -340,17 +340,21 @@ export default function RegistroRapidoPage() {
     const totales = await obtenerGastadoHoy(fechaSeleccionada);
     setGastadoDia(totales.totalHoy);
   }
-  // Saldo disponible del mes: lo mismo que "Sin usar (Real)" en Mes — lo
-  // que ya entró de ingresos reales menos todo lo que ya salio (ahorros,
-  // gastos fijos, gastos variables, deudas). Sirve para ver de un vistazo
-  // si ya te quedaste sin plata de la quincena (queda en rojo/negativo)
-  // antes de que entre el proximo ingreso.
+  // Saldo disponible del mes: arranca de la plata real que ya habia en las
+  // cuentas Principal el dia 1 (no de cero), mas lo que entro de ingresos
+  // reales menos todo lo que ya salio (ahorros, gastos fijos, gastos
+  // variables, deudas). Asi, mientras no haya un apartado tardio de otro
+  // mes o un prestamo de tarjeta sin reponer, termina coincidiendo con
+  // Real — antes arrancaba de $0 cada mes y nunca coincidia con nada.
   async function cargarSaldoDisponible() {
     const { anio, mes } = anioMes(fechaSeleccionada);
-    const resumen = await obtenerResumenMes(anio, mes);
+    const [resumen, realInicio] = await Promise.all([
+      obtenerResumenMes(anio, mes),
+      obtenerRealAlInicioMes(anio, mes),
+    ]);
     const gastado =
       resumen.ahorros.real + resumen.gastosFijos.real + resumen.gastosVariables.real + resumen.deudas.real;
-    setSaldoDisponible(resumen.ingresos.real - gastado);
+    setSaldoDisponible((realInicio || 0) + resumen.ingresos.real - gastado);
   }
   async function cargarBotones() {
     setBotones(await listarBotonesRapidos());
@@ -686,14 +690,14 @@ export default function RegistroRapidoPage() {
           <div className="absolute top-2 right-3 text-right">
             <div
               className={`text-xs font-semibold ${saldoDisponible < 0 ? "text-red-600" : "text-green-600"}`}
-              title="Presupuesto del mes: ingresos reales menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso. Se reinicia cada mes, por eso NO tiene por qué ser igual a Real."
+              title="Tu plata real del día 1 del mes, más ingresos, menos gastos/ahorros/deudas — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso. Debería quedar cerca de Real; si se aleja, es por un apartado tardío o un préstamo de tarjeta sin reponer."
             >
               Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
             </div>
             {cuentasPrincipales.length > 0 && (
               <div
                 className="text-[10px] text-gray-400"
-                title={`Real: lo que de verdad hay ahorita en ${cuentasPrincipales.map((c) => c.nombre).join(" + ")} (marcadas como "Principal" en Cuentas). Es la cifra que manda — el Saldo de arriba es solo un aviso del mes, no tiene que coincidir.`}
+                title={`Real: lo que de verdad hay ahorita en ${cuentasPrincipales.map((c) => c.nombre).join(" + ")} (marcadas como "Principal" en Cuentas). Es la cifra que siempre manda si hay diferencia con el Saldo de arriba.`}
               >
                 Real ${saldoReal.toFixed(2)}
               </div>

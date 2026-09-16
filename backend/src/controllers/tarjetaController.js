@@ -211,6 +211,67 @@ async function pagar(req, res) {
   res.json({ tarjeta: { ...tarjeta, info: calcularInfoTarjeta(tarjeta) } });
 }
 
+// A diferencia de "pagar" (que solo paga el monto exacto del ciclo ya
+// cortado), esto deja abonar cualquier monto en cualquier momento — util
+// para ir bajando saldo antes de que el ciclo corte, en vez de esperar y
+// pagar todo de una vez.
+async function abonar(req, res) {
+  const id = Number(req.params.id);
+  const existente = await prisma.tarjetaCredito.findUnique({ where: { id } });
+  if (!existente || existente.usuarioId !== req.usuarioId) {
+    return res.status(404).json({ error: "Tarjeta no encontrada" });
+  }
+
+  const monto = Number(req.body.monto);
+  if (!monto || monto <= 0) {
+    return res.status(400).json({ error: "El monto del abono debe ser mayor a 0" });
+  }
+  if (monto > Number(existente.saldoActual)) {
+    return res.status(400).json({ error: "El abono no puede ser mayor al saldo de la tarjeta" });
+  }
+
+  const { cuentaOrigenId } = req.body;
+  let cuentaOrigen = null;
+  if (cuentaOrigenId) {
+    cuentaOrigen = await validarCuentaPropia(req.usuarioId, Number(cuentaOrigenId));
+    if (!cuentaOrigen) return res.status(404).json({ error: "Cuenta no encontrada" });
+    if (monto > Number(cuentaOrigen.saldoActual)) {
+      return res.status(400).json({ error: "El monto supera el saldo disponible en la cuenta origen" });
+    }
+  }
+
+  const fechaHoy = hoyElSalvador();
+
+  const tarjeta = await prisma.$transaction(async (tx) => {
+    await tx.movimientoTarjeta.create({
+      data: { tarjetaId: id, monto: -monto, fecha: fechaHoy, descripcion: "Abono" },
+    });
+    const actualizada = await tx.tarjetaCredito.update({
+      where: { id },
+      data: { saldoActual: { decrement: monto } },
+    });
+
+    if (cuentaOrigen) {
+      await tx.movimientoCuenta.create({
+        data: {
+          cuentaId: cuentaOrigen.id,
+          monto: -monto,
+          fecha: fechaHoy,
+          descripcion: `Abono tarjeta ${existente.nombre}`,
+        },
+      });
+      await tx.cuentaBancaria.update({
+        where: { id: cuentaOrigen.id },
+        data: { saldoActual: { decrement: monto } },
+      });
+    }
+
+    return actualizada;
+  }, { timeout: 15000 });
+
+  res.json({ tarjeta: { ...tarjeta, info: calcularInfoTarjeta(tarjeta) } });
+}
+
 // Cuanto hay que pagar del ciclo YA CORTADO de cada tarjeta, y en cuantos
 // dias — para el aviso de Registro Rapido. Solo cuenta lo cargado hasta
 // corteVencido (no lo que ya se esta acumulando en el ciclo nuevo, todavia
@@ -377,4 +438,4 @@ async function apartarAhora(req, res) {
   res.status(204).send();
 }
 
-module.exports = { listar, crear, actualizar, eliminar, pagar, resumenPago, pendienteApartar, apartarAhora };
+module.exports = { listar, crear, actualizar, eliminar, pagar, abonar, resumenPago, pendienteApartar, apartarAhora };

@@ -4,7 +4,7 @@ import {
   crearCuentaBancaria, crearCuentaEfectivo,
 } from "../api/gruposCuenta";
 import {
-  crearTarjeta, eliminarTarjeta, pagarTarjeta,
+  crearTarjeta, eliminarTarjeta, pagarTarjeta, abonarTarjeta,
   listarMovimientos, crearMovimiento, actualizarMovimiento, eliminarMovimiento,
 } from "../api/tarjetas";
 import {
@@ -340,6 +340,27 @@ function TarjetaCard({ tarjeta, todasLasCuentas, onEliminar, onRefrescar }) {
     }
   }
 
+  // Abono libre: a diferencia de "Pagar", no espera a que el ciclo corte —
+  // sirve para ir bajando saldo antes, con cualquier monto.
+  const [mostrarAbono, setMostrarAbono] = useState(false);
+  const [montoAbono, setMontoAbono] = useState("");
+  const [cuentaAbonoId, setCuentaAbonoId] = useState("");
+  const [abonando, setAbonando] = useState(false);
+  async function handleAbonar() {
+    const monto = Number(montoAbono);
+    if (!monto || monto <= 0) return;
+    setAbonando(true);
+    try {
+      await abonarTarjeta(tarjeta.id, monto, cuentaAbonoId ? Number(cuentaAbonoId) : undefined);
+      setMontoAbono("");
+      setMostrarAbono(false);
+      await cargarMovimientos();
+      onRefrescar();
+    } finally {
+      setAbonando(false);
+    }
+  }
+
   const [verHistorialCompleto, setVerHistorialCompleto] = useState(false);
 
   const { info } = tarjeta;
@@ -409,6 +430,62 @@ function TarjetaCard({ tarjeta, todasLasCuentas, onEliminar, onRefrescar }) {
                   </option>
                 ))}
               </select>
+            )}
+          </div>
+        )}
+
+        {Number(tarjeta.saldoActual) > 0 && (
+          <div className="mb-3">
+            {!mostrarAbono ? (
+              <button
+                onClick={() => setMostrarAbono(true)}
+                title="Abonar cualquier monto ahora, sin esperar a que el ciclo corte"
+                className="text-gray-600 text-sm font-medium hover:underline"
+              >
+                Abonar antes del corte
+              </button>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={Number(tarjeta.saldoActual)}
+                  value={montoAbono}
+                  onChange={(e) => setMontoAbono(e.target.value)}
+                  placeholder="Monto"
+                  className="border border-gray-300 rounded px-2 py-1 text-sm w-24"
+                  autoFocus
+                />
+                {todasLasCuentas.length > 0 && (
+                  <select
+                    value={cuentaAbonoId}
+                    onChange={(e) => setCuentaAbonoId(e.target.value)}
+                    title="De qué cuenta sale el dinero (opcional)"
+                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                  >
+                    <option value="">Sin descontar de ninguna cuenta</option>
+                    {todasLasCuentas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  onClick={handleAbonar}
+                  disabled={abonando || !montoAbono}
+                  className="text-green-700 text-sm font-medium hover:underline disabled:opacity-50"
+                >
+                  {abonando ? "Abonando..." : "Confirmar"}
+                </button>
+                <button
+                  onClick={() => { setMostrarAbono(false); setMontoAbono(""); }}
+                  className="text-gray-400 text-sm hover:underline"
+                >
+                  Cancelar
+                </button>
+              </div>
             )}
           </div>
         )}

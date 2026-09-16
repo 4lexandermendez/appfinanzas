@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { requiereAuth } = require("../middlewares/authMiddleware");
-const { listar, crear, actualizar, eliminar, pagar, resumenPago, pendienteApartar, apartarAhora } = require("../controllers/tarjetaController");
+const { listar, crear, actualizar, eliminar, pagar, abonar, resumenPago, pendienteApartar, apartarAhora } = require("../controllers/tarjetaController");
 const movimientos = require("../controllers/movimientoTarjetaController");
 
 const router = Router();
@@ -14,6 +14,7 @@ router.post("/", crear);
 router.put("/:id", actualizar);
 router.delete("/:id", eliminar);
 router.post("/:id/pagar", pagar);
+router.post("/:id/abonar", abonar);
 
 router.get("/:tarjetaId/movimientos", movimientos.listar);
 router.post("/:tarjetaId/movimientos", movimientos.crear);

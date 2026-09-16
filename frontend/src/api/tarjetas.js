@@ -24,6 +24,11 @@ export async function pagarTarjeta(id, cuentaOrigenId) {
   return data.tarjeta;
 }
 
+export async function abonarTarjeta(id, monto, cuentaOrigenId) {
+  const { data } = await client.post(`/tarjetas/${id}/abonar`, { monto, ...(cuentaOrigenId ? { cuentaOrigenId } : {}) });
+  return data.tarjeta;
+}
+
 export async function obtenerResumenPago() {
   const { data } = await client.get("/tarjetas/resumen-pago");
   return data.pendientes;

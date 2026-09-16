@@ -28,7 +28,7 @@ model Usuario {
   gruposCuenta         GrupoCuenta[]
   ajusteTracker        AjusteTracker[]
   diasLibres           DiaLibre[]
-  botonesRapidosConfig BotonRapidoConfig[]
+  montosRapidos MontoRapido[]
   alertasConfig        AlertaConfig[]
   deudasConfig         DeudaConfig[]
 
@@ -520,18 +520,19 @@ model DiaLibre {
 // BOTONES RÁPIDOS (montos frecuentes por concepto, tipo cajero)
 // ============================================================
 
-model BotonRapidoConfig {
-  id        Int      @id @default(autoincrement())
-  usuarioId Int      @map("usuario_id")
+// Lista abierta (no un tope fijo de 3) de montos frecuentes por concepto,
+// para el carrusel de montos de Registro Rapido — cada fila es un monto
+// individual, se ordenan por valor al mostrarse.
+model MontoRapido {
+  id        Int     @id @default(autoincrement())
+  usuarioId Int     @map("usuario_id")
   concepto  String
-  monto1    Decimal  @map("monto_1") @db.Decimal(10, 2)
-  monto2    Decimal? @map("monto_2") @db.Decimal(10, 2)
-  monto3    Decimal? @map("monto_3") @db.Decimal(10, 2)
+  monto     Decimal @db.Decimal(10, 2)
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
-  @@unique([usuarioId, concepto])
-  @@map("botones_rapidos_config")
+  @@unique([usuarioId, concepto, monto])
+  @@map("montos_rapidos")
 }
 
 // ============================================================

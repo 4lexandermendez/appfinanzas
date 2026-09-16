@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bus, Coffee, Utensils } from "lucide-react";
 import { obtenerGastadoHoy, obtenerResumenMes, obtenerRealAlInicioMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker, obtenerEstimadoMes } from "../api/tracker";
@@ -22,10 +23,10 @@ const CUENTAS_BANCO = [
 ];
 
 const CONCEPTOS = [
-  { valor: "PASAJE_IDA", etiqueta: "Pasaje ida" },
-  { valor: "DESAYUNO", etiqueta: "Desayuno" },
-  { valor: "ALMUERZO", etiqueta: "Almuerzo" },
-  { valor: "PASAJE_REGRESO", etiqueta: "Pasaje regreso" },
+  { valor: "PASAJE_IDA", etiqueta: "Pasaje ida", Icono: Bus },
+  { valor: "DESAYUNO", etiqueta: "Desayuno", Icono: Coffee },
+  { valor: "ALMUERZO", etiqueta: "Almuerzo", Icono: Utensils },
+  { valor: "PASAJE_REGRESO", etiqueta: "Pasaje regreso", Icono: Bus },
 ];
 
 const NOMBRES_DIA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -265,6 +266,93 @@ function SelectorFechaRueda({ dias, fechaSeleccionada, onSeleccionar, hoyReal, t
   );
 }
 
+const GRADOS_POR_MONTO = 28; // ruedita mas espaciada que la de fechas, hay pocos montos
+const RADIO_RUEDA_MONTO = 95;
+
+// Mismo mecanismo de arrastre/rotacion que SelectorFechaRueda, pero para
+// montos: a diferencia de las fechas (donde "seleccionar" solo cambia que
+// dia se ve, sin efecto real), acá seleccionar SI registra un gasto de
+// verdad — por eso soltar el arrastre solo reacomoda la ruedita (no
+// registra nada), y unicamente el tap directo sobre un monto lo registra.
+function SelectorMontoRueda({ montos, onSeleccionar, deshabilitado }) {
+  const [angulo, setAngulo] = useState(0);
+  const anguloRef = useRef(0);
+  const arrastreRef = useRef(null);
+  const anguloMax = Math.max(0, (montos.length - 1) * GRADOS_POR_MONTO);
+
+  useEffect(() => {
+    anguloRef.current = 0;
+    setAngulo(0);
+  }, [montos.length]);
+
+  function fijarAngulo(valor) {
+    const limitado = Math.max(0, Math.min(anguloMax, valor));
+    anguloRef.current = limitado;
+    setAngulo(limitado);
+  }
+  function handlePointerDown(e) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastreRef.current = { x: e.clientX, anguloInicial: anguloRef.current };
+  }
+  function handlePointerMove(e) {
+    if (!arrastreRef.current) return;
+    const dx = e.clientX - arrastreRef.current.x;
+    fijarAngulo(arrastreRef.current.anguloInicial - dx * SENSIBILIDAD_ARRASTRE);
+  }
+  function handlePointerUp() {
+    if (!arrastreRef.current) return;
+    arrastreRef.current = null;
+    const idx = Math.max(0, Math.min(montos.length - 1, Math.round(anguloRef.current / GRADOS_POR_MONTO)));
+    fijarAngulo(idx * GRADOS_POR_MONTO);
+  }
+  function handleClickMonto(m, idx) {
+    fijarAngulo(idx * GRADOS_POR_MONTO);
+    onSeleccionar(m);
+  }
+
+  return (
+    <div
+      className="relative isolate h-14 select-none touch-none cursor-grab active:cursor-grabbing overflow-hidden"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {montos.map((m, i) => {
+        const anguloItem = i * GRADOS_POR_MONTO - angulo;
+        const anguloAbs = Math.abs(anguloItem);
+        if (anguloAbs > 90) return null;
+
+        const rad = (anguloItem * Math.PI) / 180;
+        const offsetX = Math.sin(rad) * RADIO_RUEDA_MONTO;
+        const escalaX = Math.max(0.06, Math.cos(rad));
+        const opacidad = Math.max(0, escalaX - 0.06);
+        const alFrente = anguloAbs < GRADOS_POR_MONTO / 2;
+
+        return (
+          <button
+            key={m}
+            type="button"
+            disabled={deshabilitado}
+            onClick={() => handleClickMonto(m, i)}
+            style={{
+              transform: `translate(${offsetX - 28}px, -50%) scaleX(${escalaX})`,
+              opacity: opacidad,
+              filter: `brightness(${0.55 + 0.45 * escalaX})`,
+              zIndex: Math.round(1000 - anguloAbs),
+            }}
+            className={`absolute left-1/2 top-1/2 flex items-center justify-center w-14 h-11 rounded-lg text-sm font-semibold disabled:opacity-50 ${
+              alFrente ? "bg-purple-600 text-white" : "text-gray-500"
+            }`}
+          >
+            ${m.toFixed(2)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function RegistroRapidoPage() {
   const hoyReal = useMemo(() => hoyISO(), []);
   // Todo el mes (1 al 28/29/30/31, segun corresponda) para poder registrar
@@ -296,6 +384,9 @@ export default function RegistroRapidoPage() {
   const [estimadoDias, setEstimadoDias] = useState(null);
   const [registrando, setRegistrando] = useState(null);
   const [mensaje, setMensaje] = useState("");
+  // Cual concepto (PASAJE_IDA, DESAYUNO, ...) tiene la ruedita de montos
+  // abierta ahorita mismo — null si todos estan colapsados a solo su icono.
+  const [conceptoExpandido, setConceptoExpandido] = useState(null);
 
   const [categoriaId, setCategoriaId] = useState(null);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
@@ -826,91 +917,98 @@ export default function RegistroRapidoPage() {
       )}
 
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="hidden sm:grid sm:grid-cols-2 gap-x-4 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">Botones rápidos</h2>
-          <h2 className="text-sm font-semibold text-gray-700">Hoy registraste</h2>
-        </div>
-        <h2 className="sm:hidden text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          {CONCEPTOS.map((c) => {
-            const config = botones.find((b) => b.concepto === c.valor);
-            const montos = config ? [config.monto1, config.monto2, config.monto3].filter(Boolean) : [];
-            const registrosConcepto = registrosDelConcepto(c.valor);
-            return (
-              <Fragment key={c.valor}>
-                <div className="border-t border-gray-50 pt-3">
-                  <p className="text-xs text-gray-500 mb-1">{c.etiqueta}</p>
-                  <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                    <button
-                      type="button"
-                      disabled={registrando === `${c.valor}-0`}
-                      onClick={() => handleBoton(c.valor, 0)}
-                      className="shrink-0 px-3 py-2 rounded bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
-                    >
-                      $0.00
-                    </button>
-                    {montos.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        disabled={registrando === `${c.valor}-${m}`}
-                        onClick={() => handleBoton(c.valor, Number(m))}
-                        className="shrink-0 px-3 py-2 rounded bg-purple-100 text-purple-800 text-sm font-medium hover:bg-purple-200 disabled:opacity-50"
-                      >
-                        ${Number(m).toFixed(2)}
-                      </button>
-                    ))}
-                    <div className="flex items-center gap-1 shrink-0">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="Otro"
-                        value={montosLibres[c.valor] ?? ""}
-                        onChange={(e) => setMontosLibres((prev) => ({ ...prev, [c.valor]: e.target.value }))}
-                        className="w-16 shrink-0 border border-gray-300 rounded px-2 py-2 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleMontoLibre(c.valor)}
-                        className="shrink-0 px-2 py-2 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
-                      >
-                        OK
-                      </button>
-                    </div>
-                  </div>
-                </div>
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Botones rápidos</h2>
 
-                <div className="pt-1 sm:border-t sm:border-gray-50 sm:pt-3">
-                  <p className="text-xs text-gray-500 mb-1 sm:invisible">Hoy registraste</p>
-                  {registrosConcepto.length === 0 ? (
-                    <div className="inline-flex items-center px-3 py-2 rounded border border-dashed border-gray-200 text-xs text-gray-300">
-                      Sin registros
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {registrosConcepto.map((r) => (
-                        <span key={r.id} className="inline-flex items-center gap-2">
-                          <span className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700">
-                            ${Number(r.monto).toFixed(2)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleEliminarTracker(r.id)}
-                            title="Corregir / borrar"
-                            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500"
-                          >
-                            🗑️
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Fragment>
+        <div className="flex items-center justify-around">
+          {CONCEPTOS.map((c) => {
+            const activo = conceptoExpandido === c.valor;
+            return (
+              <button
+                key={c.valor}
+                type="button"
+                title={c.etiqueta}
+                aria-label={c.etiqueta}
+                onClick={() => setConceptoExpandido(activo ? null : c.valor)}
+                className={`flex items-center justify-center w-14 h-14 rounded-xl transition-colors ${
+                  activo ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <c.Icono className="w-6 h-6" />
+              </button>
             );
           })}
         </div>
+
+        {conceptoExpandido &&
+          (() => {
+            const c = CONCEPTOS.find((x) => x.valor === conceptoExpandido);
+            const montosGuardados = botones
+              .filter((b) => b.concepto === conceptoExpandido)
+              .map((b) => Number(b.monto))
+              .sort((a, b) => a - b);
+            const opciones = [0, ...montosGuardados];
+            const registrosConcepto = registrosDelConcepto(conceptoExpandido);
+            const valorLibre = montosLibres[conceptoExpandido] ?? "";
+
+            async function handleSeleccionRueda(m) {
+              await handleBoton(conceptoExpandido, m);
+              setConceptoExpandido(null);
+            }
+            async function handleOkLibre() {
+              if (valorLibre === "") return;
+              await handleMontoLibre(conceptoExpandido);
+              setConceptoExpandido(null);
+            }
+
+            return (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-500 mb-1 text-center">{c.etiqueta}</p>
+                <SelectorMontoRueda
+                  montos={opciones}
+                  onSeleccionar={handleSeleccionRueda}
+                  deshabilitado={!!registrando}
+                />
+                <div className="flex items-center justify-center gap-1 mt-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Otro"
+                    value={valorLibre}
+                    onChange={(e) => setMontosLibres((prev) => ({ ...prev, [conceptoExpandido]: e.target.value }))}
+                    className="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleOkLibre}
+                    className="px-3 py-1.5 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+                  >
+                    OK
+                  </button>
+                </div>
+
+                {registrosConcepto.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                    {registrosConcepto.map((r) => (
+                      <span key={r.id} className="inline-flex items-center gap-2">
+                        <span className="bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5 text-sm text-gray-700">
+                          ${Number(r.monto).toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarTracker(r.id)}
+                          title="Corregir / borrar"
+                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 text-red-500 text-xs"
+                        >
+                          🗑️
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { obtenerAjustesTracker, guardarAjustesTracker } from "../api/ajustesTracker";
-import { listarBotonesRapidos, guardarBotonRapido } from "../api/botonesRapidos";
+import { listarBotonesRapidos, crearMontoRapido, eliminarMontoRapido } from "../api/botonesRapidos";
 import { listarDiasLibres, crearDiaLibre, eliminarDiaLibre } from "../api/diasLibres";
 import { listarAlertas, listarAlertasConfig, guardarAlertaConfig } from "../api/alertas";
 import { hoyISO, hoyAnioMes } from "../utils/fecha";
@@ -152,23 +152,12 @@ function SeccionAjustesTracker() {
 }
 
 function SeccionBotonesRapidos() {
-  const [botones, setBotones] = useState([]);
-  const [form, setForm] = useState({});
+  const [montos, setMontos] = useState([]);
+  const [nuevoMonto, setNuevoMonto] = useState({});
   const [cargando, setCargando] = useState(true);
 
   async function cargar() {
-    const data = await listarBotonesRapidos();
-    setBotones(data);
-    const inicial = {};
-    for (const c of CONCEPTOS_TRACKER) {
-      const existente = data.find((b) => b.concepto === c.valor);
-      inicial[c.valor] = {
-        monto1: existente?.monto1 ?? "",
-        monto2: existente?.monto2 ?? "",
-        monto3: existente?.monto3 ?? "",
-      };
-    }
-    setForm(inicial);
+    setMontos(await listarBotonesRapidos());
     setCargando(false);
   }
 
@@ -176,15 +165,16 @@ function SeccionBotonesRapidos() {
     cargar();
   }, []);
 
-  async function handleGuardar(concepto) {
-    const { monto1, monto2, monto3 } = form[concepto];
-    if (!monto1) return;
-    await guardarBotonRapido({
-      concepto,
-      monto1: Number(monto1),
-      monto2: monto2 ? Number(monto2) : null,
-      monto3: monto3 ? Number(monto3) : null,
-    });
+  async function handleAgregar(concepto) {
+    const valor = nuevoMonto[concepto];
+    if (!valor) return;
+    await crearMontoRapido(concepto, Number(valor));
+    setNuevoMonto({ ...nuevoMonto, [concepto]: "" });
+    cargar();
+  }
+
+  async function handleEliminar(id) {
+    await eliminarMontoRapido(id);
     cargar();
   }
 
@@ -193,35 +183,52 @@ function SeccionBotonesRapidos() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-400">
-        Montos frecuentes por concepto, tipo cajero automático (hasta 3 por concepto).
+        Montos frecuentes por concepto para el carrusel de Registro Rápido — agregá los que quieras, sin límite.
       </p>
-      {CONCEPTOS_TRACKER.map((c) => (
-        <div key={c.valor} className="text-sm space-y-2 pb-2 border-b border-gray-100 last:border-0">
-          <span className="block font-medium text-gray-700">{c.etiqueta}</span>
-          <div className="flex gap-2">
-            {["monto1", "monto2", "monto3"].map((campo) => (
+      {CONCEPTOS_TRACKER.map((c) => {
+        const montosConcepto = montos.filter((m) => m.concepto === c.valor);
+        return (
+          <div key={c.valor} className="text-sm space-y-2 pb-2 border-b border-gray-100 last:border-0">
+            <span className="block font-medium text-gray-700">{c.etiqueta}</span>
+            {montosConcepto.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {montosConcepto.map((m) => (
+                  <span
+                    key={m.id}
+                    className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 rounded-full pl-3 pr-1 py-1"
+                  >
+                    ${Number(m.monto).toFixed(2)}
+                    <button
+                      onClick={() => handleEliminar(m.id)}
+                      className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-purple-200"
+                      title="Quitar"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
               <input
-                key={campo}
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder={campo === "monto1" ? "Requerido" : "Opcional"}
-                value={form[c.valor]?.[campo] ?? ""}
-                onChange={(e) =>
-                  setForm({ ...form, [c.valor]: { ...form[c.valor], [campo]: e.target.value } })
-                }
+                placeholder="Nuevo monto"
+                value={nuevoMonto[c.valor] ?? ""}
+                onChange={(e) => setNuevoMonto({ ...nuevoMonto, [c.valor]: e.target.value })}
                 className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1"
               />
-            ))}
+              <button
+                onClick={() => handleAgregar(c.valor)}
+                className="bg-purple-100 text-purple-800 rounded px-3 py-1 hover:bg-purple-200"
+              >
+                Agregar
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => handleGuardar(c.valor)}
-            className="w-full bg-purple-100 text-purple-800 rounded px-2 py-1 hover:bg-purple-200"
-          >
-            Guardar
-          </button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

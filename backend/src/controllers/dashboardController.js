@@ -67,26 +67,4 @@ async function resumenAnualCompleto(req, res) {
   res.json(resultado);
 }
 
-// Saldo (ingresos.real - gastado) sumado de TODOS los meses con presupuesto,
-// no solo el actual. El Saldo del mes se reinicia cada dia 1, pero la plata
-// real en las cuentas es acumulada de siempre — comparar el Saldo mensual
-// contra el saldo real de las cuentas da una diferencia enorme y enganosa.
-// Reusa calcularResumenMes mes a mes para garantizar la misma formula que
-// ya se ve en pantalla, en vez de duplicar la logica.
-async function saldoAcumulado(req, res) {
-  const presupuestos = await prisma.presupuestoMensual.findMany({
-    where: { usuarioId: req.usuarioId },
-    select: { anio: true, mes: true },
-  });
-
-  let total = 0;
-  for (const { anio, mes } of presupuestos) {
-    const r = await calcularResumenMes(req.usuarioId, anio, mes);
-    const gastado = r.ahorros.real + r.gastosFijos.real + r.gastosVariables.real + r.deudas.real;
-    total += r.ingresos.real - gastado;
-  }
-
-  res.json({ saldoAcumulado: redondear(total) });
-}
-
-module.exports = { hoy, resumenMes, resumenAnualCompleto, saldoAcumulado };
+module.exports = { hoy, resumenMes, resumenAnualCompleto };

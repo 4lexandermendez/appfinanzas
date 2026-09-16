@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { obtenerGastadoHoy, obtenerResumenMes, obtenerSaldoAcumulado } from "../api/dashboard";
+import { obtenerGastadoHoy, obtenerResumenMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
 import { registrarTracker, listarTracker, eliminarTracker, obtenerEstimadoMes } from "../api/tracker";
 import { listarCategorias, crearCategoria } from "../api/categorias";
@@ -282,7 +282,6 @@ export default function RegistroRapidoPage() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyReal);
   const [gastadoDia, setGastadoDia] = useState(null);
   const [saldoDisponible, setSaldoDisponible] = useState(null);
-  const [saldoAcumulado, setSaldoAcumulado] = useState(null);
   const [deudaTotalPendiente, setDeudaTotalPendiente] = useState(null);
   const [pagosPendientesTarjetas, setPagosPendientesTarjetas] = useState([]);
   const [pendienteApartar, setPendienteApartar] = useState([]);
@@ -344,13 +343,6 @@ export default function RegistroRapidoPage() {
     const gastado =
       resumen.ahorros.real + resumen.gastosFijos.real + resumen.gastosVariables.real + resumen.deudas.real;
     setSaldoDisponible(resumen.ingresos.real - gastado);
-  }
-  // Saldo acumulado de todos los meses (no solo el actual) — para poder
-  // comparar contra la plata real de las cuentas sin que el reinicio
-  // mensual del Saldo de arriba haga parecer que falta dinero que en
-  // realidad esta contado en meses anteriores.
-  async function cargarSaldoAcumulado() {
-    setSaldoAcumulado(await obtenerSaldoAcumulado());
   }
   async function cargarBotones() {
     setBotones(await listarBotonesRapidos());
@@ -419,7 +411,6 @@ export default function RegistroRapidoPage() {
   function cargarTodo() {
     cargarGastadoDia();
     cargarSaldoDisponible();
-    cargarSaldoAcumulado();
     cargarBotones();
     cargarCategorias();
     cargarDeudaTotalPendiente();
@@ -684,21 +675,13 @@ export default function RegistroRapidoPage() {
     <div className="space-y-6">
       <div className="relative bg-white rounded-lg shadow p-6 text-center">
         {saldoDisponible !== null && (
-          <div className="absolute top-2 right-3 text-right">
-            <div
-              className={`text-xs font-semibold ${saldoDisponible < 0 ? "text-red-600" : "text-green-600"}`}
-              title="Ingresos reales del mes menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso"
-            >
-              Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
-            </div>
-            {saldoAcumulado !== null && (
-              <div
-                className="text-[10px] text-gray-400"
-                title="Saldo sumado de todos los meses, no solo el actual — comparar esto (y no el Saldo de arriba) contra tus cuentas reales, porque el Saldo del mes se reinicia cada dia 1"
-              >
-                Acumulado {saldoAcumulado < 0 ? "-" : ""}${Math.abs(saldoAcumulado).toFixed(2)}
-              </div>
-            )}
+          <div
+            className={`absolute top-2 right-3 text-xs font-semibold ${
+              saldoDisponible < 0 ? "text-red-600" : "text-green-600"
+            }`}
+            title="Ingresos reales del mes menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso"
+          >
+            Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
           </div>
         )}
         {deudaTotalPendiente !== null && deudaTotalPendiente > 0 && (

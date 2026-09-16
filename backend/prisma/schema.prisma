@@ -365,6 +365,11 @@ model CuentaBancaria {
   // usuario (aplicacion, no constraint de DB, garantiza que haya como maximo
   // una). Ver cuentaEfectivoService.
   esEfectivo  Boolean @default(false) @map("es_efectivo")
+  // Marca las cuentas que cuentan como "tu plata real disponible" (tipicamente
+  // BAC + Efectivo) para el indicador Real del Registro Rapido — a diferencia
+  // de cuentas de reserva/deuda de otra gente (Cuscatlan, Multimoney, etc.)
+  // que no deben sumarse ahi. Puede haber varias, a diferencia de esEfectivo.
+  esPrincipal Boolean @default(false) @map("es_principal")
 
   grupo         GrupoCuenta        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   tarjetaDebito TarjetaDebito?

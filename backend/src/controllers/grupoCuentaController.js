@@ -141,11 +141,13 @@ async function actualizarCuenta(req, res) {
   if (!cuenta || cuenta.grupo.usuarioId !== req.usuarioId) {
     return res.status(404).json({ error: "Cuenta no encontrada" });
   }
-  const { nombre } = req.body;
+  const { nombre, esPrincipal } = req.body;
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: "nombre es requerido" });
   }
-  const actualizada = await prisma.cuentaBancaria.update({ where: { id }, data: { nombre: nombre.trim() } });
+  const data = { nombre: nombre.trim() };
+  if (typeof esPrincipal === "boolean") data.esPrincipal = esPrincipal;
+  const actualizada = await prisma.cuentaBancaria.update({ where: { id }, data });
   res.json({ cuenta: actualizada });
 }
 

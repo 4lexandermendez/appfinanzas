@@ -310,6 +310,14 @@ export default function RegistroRapidoPage() {
   const [cuentaOrigenId, setCuentaOrigenId] = useState("");
   const [cuentaDestinoId, setCuentaDestinoId] = useState("");
   const [todasLasCuentas, setTodasLasCuentas] = useState([]);
+  // Cuentas marcadas como "Principal" en Cuentas (tipicamente BAC +
+  // Efectivo) — son las que cuentan como plata real disponible, a
+  // diferencia de cuentas de reserva/deuda de otra gente.
+  const cuentasPrincipales = useMemo(() => todasLasCuentas.filter((c) => c.esPrincipal), [todasLasCuentas]);
+  const saldoReal = useMemo(
+    () => cuentasPrincipales.reduce((s, c) => s + Number(c.saldoActual), 0),
+    [cuentasPrincipales]
+  );
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [gastosFijosMesAnterior, setGastosFijosMesAnterior] = useState([]);
@@ -675,13 +683,21 @@ export default function RegistroRapidoPage() {
     <div className="space-y-6">
       <div className="relative bg-white rounded-lg shadow p-6 text-center">
         {saldoDisponible !== null && (
-          <div
-            className={`absolute top-2 right-3 text-xs font-semibold ${
-              saldoDisponible < 0 ? "text-red-600" : "text-green-600"
-            }`}
-            title="Ingresos reales del mes menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso"
-          >
-            Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
+          <div className="absolute top-2 right-3 text-right">
+            <div
+              className={`text-xs font-semibold ${saldoDisponible < 0 ? "text-red-600" : "text-green-600"}`}
+              title="Presupuesto del mes: ingresos reales menos lo que ya gastaste/ahorraste/debés — se pone en rojo si te quedaste sin plata antes de tu próximo ingreso. Se reinicia cada mes, por eso NO tiene por qué ser igual a Real."
+            >
+              Saldo {saldoDisponible < 0 ? "-" : ""}${Math.abs(saldoDisponible).toFixed(2)}
+            </div>
+            {cuentasPrincipales.length > 0 && (
+              <div
+                className="text-[10px] text-gray-400"
+                title={`Real: lo que de verdad hay ahorita en ${cuentasPrincipales.map((c) => c.nombre).join(" + ")} (marcadas como "Principal" en Cuentas). Es la cifra que manda — el Saldo de arriba es solo un aviso del mes, no tiene que coincidir.`}
+              >
+                Real ${saldoReal.toFixed(2)}
+              </div>
+            )}
           </div>
         )}
         {deudaTotalPendiente !== null && deudaTotalPendiente > 0 && (

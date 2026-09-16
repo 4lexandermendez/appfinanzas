@@ -28,8 +28,11 @@ export async function crearCuentaBancaria(grupoId, nombre) {
   return data.cuenta;
 }
 
-export async function actualizarCuentaBancaria(id, nombre) {
-  const { data } = await client.put(`/grupos-cuenta/cuentas/${id}`, { nombre });
+export async function actualizarCuentaBancaria(id, nombre, esPrincipal) {
+  const { data } = await client.put(`/grupos-cuenta/cuentas/${id}`, {
+    nombre,
+    ...(typeof esPrincipal === "boolean" ? { esPrincipal } : {}),
+  });
   return data.cuenta;
 }
 

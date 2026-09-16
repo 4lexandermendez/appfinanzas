@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   listarGruposCuenta, crearGrupoCuenta, eliminarGrupoCuenta, moverGrupoCuenta,
-  crearCuentaBancaria, crearCuentaEfectivo,
+  crearCuentaBancaria, crearCuentaEfectivo, actualizarCuentaBancaria,
 } from "../api/gruposCuenta";
 import {
   crearTarjeta, eliminarTarjeta, pagarTarjeta, abonarTarjeta,
@@ -705,6 +705,13 @@ function CuentaBancariaRow({
     await cargarMovimientos();
     onRefrescar();
   }
+  // "Cuenta principal" decide si esta cuenta suma al indicador Real de
+  // Registro Rapido (tipicamente BAC + Efectivo) — a diferencia de cuentas
+  // de reserva/deuda de otra gente que no deben contarse ahi.
+  async function handleTogglePrincipal(e) {
+    await actualizarCuentaBancaria(cuenta.id, cuenta.nombre, e.target.checked);
+    onRefrescar();
+  }
 
   // La billetera de efectivo se ordena primero — es el destino más común
   // (retirar efectivo), asi queda a la vista sin tener que buscarla.
@@ -720,6 +727,10 @@ function CuentaBancariaRow({
           <span className="text-gray-500"> · saldo ${Number(cuenta.saldoActual).toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer" title="Cuenta principal: suma al indicador Real de Registro Rápido (tu plata real disponible, ej. BAC + Efectivo)">
+            <input type="checkbox" checked={!!cuenta.esPrincipal} onChange={handleTogglePrincipal} />
+            Principal
+          </label>
           <button onClick={() => setExpandida((v) => !v)} className="text-purple-600 hover:underline flex items-center gap-1" title={expandida ? "Ocultar movimientos" : "Ver movimientos"}>
             <IconEye />
           </button>

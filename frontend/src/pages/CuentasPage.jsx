@@ -372,7 +372,7 @@ function TarjetaCard({ tarjeta, todasLasCuentas, onEliminar, onRefrescar }) {
   // y lo unico que el calendario de abajo debe marcar como "por pagar").
   const hayDeuda = info.montoCicloVencido > 0;
 
-  // Una vez pagado (hay un movimiento de pago, monto negativo), ese pago y
+  // Una vez pagado TODO el ciclo (un movimiento "Pago total"), ese pago y
   // todo lo anterior ya no se muestran en la lista (no se borran, solo se
   // ocultan) — asi el historial visible arranca limpio con lo nuevo. No se
   // puede usar "saldoActual > 0" para decidir esto porque apenas se
@@ -381,8 +381,11 @@ function TarjetaCard({ tarjeta, todasLasCuentas, onEliminar, onRefrescar }) {
   // vez de fecha, porque un pago y una compra nueva el mismo dia tendrian
   // la misma fecha pero deben poder distinguirse igual. "Ver historial
   // completo" trae todo de vuelta sin tener que borrar nada.
+  // OJO: un "Abono" (pago parcial) NO cuenta aca — a diferencia de "Pago
+  // total", un abono no necesariamente salda todo lo anterior, asi que no
+  // debe esconder cargos que siguen pendientes.
   const idUltimoPago = movimientos
-    .filter((m) => Number(m.monto) < 0)
+    .filter((m) => Number(m.monto) < 0 && m.descripcion === "Pago total")
     .reduce((max, m) => Math.max(max, m.id), 0);
   // Se calcula aparte de movimientosVisibles (que ya depende de
   // verHistorialCompleto) para que el boton de mostrar/ocultar no se

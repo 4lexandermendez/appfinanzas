@@ -53,17 +53,17 @@ function Tarjetita({ clase, nombre, tipo, montoTxt, sub, chip, ancha, deshabilit
       type="button"
       disabled={deshabilitada}
       onClick={onClick}
-      className={`relative overflow-hidden rounded-2xl p-3 text-left text-white bg-gradient-to-br shadow-md flex flex-col justify-between active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${clase} ${
-        ancha ? "col-span-2 aspect-[3.2]" : "aspect-[1.7]"
+      className={`relative overflow-hidden rounded-2xl p-3 text-left text-white bg-gradient-to-br shadow-md flex flex-col justify-between gap-2 active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${clase} ${
+        ancha ? "col-span-2 min-h-[84px]" : "min-h-[124px]"
       }`}
     >
       <span className="absolute -right-5 -top-5 w-24 h-24 rounded-full bg-white/15" />
       <span className="absolute right-4 top-6 w-11 h-11 rounded-full bg-white/10" />
-      {chip && <span className="absolute left-3 top-10 w-6 h-4 rounded bg-gradient-to-br from-yellow-200 to-yellow-600 opacity-90" />}
       <span className="relative">
-        <span className="block text-xs font-bold leading-tight">{nombre}</span>
+        <span className="block text-xs font-bold leading-tight line-clamp-2">{nombre}</span>
         <span className="block text-[9.5px] font-semibold uppercase tracking-wider opacity-75">{tipo}</span>
       </span>
+      {chip && <span className="relative block w-6 h-4 rounded bg-gradient-to-br from-yellow-200 to-yellow-600 opacity-90" />}
       <span className="relative">
         <span className="block text-base font-bold tabular-nums">{montoTxt}</span>
         <span className="block text-[10px] opacity-80">{sub}</span>

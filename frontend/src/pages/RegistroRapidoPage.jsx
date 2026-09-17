@@ -1329,7 +1329,7 @@ export default function RegistroRapidoPage() {
           )}
 
           {fuentePago && (
-            <div className="grid grid-cols-2 gap-2.5 mt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 mt-3">
               {fuentePago === "EFECTIVO" && (
                 <Tarjetita
                   ancha

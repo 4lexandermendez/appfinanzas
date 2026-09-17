@@ -367,22 +367,41 @@ function SelectorMontoRueda({ montos, onSeleccionar, onOtro, deshabilitado, soni
       if (sonido) tic();
     }
   }
+  // El tap se resuelve aca (en pointerup, si no hubo arrastre) y NO con
+  // onClick en cada boton: al capturar el puntero para arrastrar, el
+  // navegador de escritorio re-dirige el click al contenedor y el boton
+  // nunca lo recibe (en el telefono el toque genera el click por otro
+  // camino, por eso ahi si andaba).
   function handlePointerDown(e) {
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreRef.current = { x: e.clientX, anguloInicial: anguloRef.current };
+    const boton = e.target.closest?.("button[data-idx]");
+    arrastreRef.current = {
+      x: e.clientX,
+      anguloInicial: anguloRef.current,
+      idxTocado: boton ? Number(boton.dataset.idx) : null,
+      movido: false,
+    };
   }
   function handlePointerMove(e) {
     if (!arrastreRef.current) return;
     const dx = e.clientX - arrastreRef.current.x;
+    if (Math.abs(dx) > 5) arrastreRef.current.movido = true;
     fijarAngulo(arrastreRef.current.anguloInicial - dx * SENSIBILIDAD_ARRASTRE_MONTO);
   }
   function handlePointerUp() {
-    if (!arrastreRef.current) return;
+    const arrastre = arrastreRef.current;
+    if (!arrastre) return;
     arrastreRef.current = null;
+    if (!arrastre.movido && arrastre.idxTocado !== null && !deshabilitado) {
+      elegir(arrastre.idxTocado);
+      return;
+    }
     const idx = Math.max(0, Math.min(opciones.length - 1, Math.round(anguloRef.current / GRADOS_POR_MONTO)));
     fijarAngulo(idx * GRADOS_POR_MONTO);
   }
-  function handleClick(op, idx) {
+  function elegir(idx) {
+    const op = opciones[idx];
+    if (!op) return;
     fijarAngulo(idx * GRADOS_POR_MONTO);
     if (op.tipo === "otro") onOtro();
     else onSeleccionar(op.valor);
@@ -412,9 +431,9 @@ function SelectorMontoRueda({ montos, onSeleccionar, onOtro, deshabilitado, soni
             <button
               key={op.tipo === "otro" ? "otro" : op.valor}
               type="button"
+              data-idx={i}
               disabled={deshabilitado}
               title={op.tipo === "otro" ? "Otro monto" : undefined}
-              onClick={() => handleClick(op, i)}
               style={{
                 transform: `translate(${offsetX - 26}px, -50%) scaleX(${escalaX})`,
                 opacity: opacidad,

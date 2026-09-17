@@ -29,10 +29,10 @@ export async function listarGastosFijosMensual(anio, mes) {
 }
 
 export async function guardarGastoFijoMensual({
-  gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId,
+  gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, cuentaBancariaId, aportesExternos, cuentaOrigenId, cuentaDestinoId,
 }) {
   const { data } = await client.put("/gastos-fijos/mensual", {
-    gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId,
+    gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, cuentaBancariaId, aportesExternos, cuentaOrigenId, cuentaDestinoId,
   });
   return data.registro;
 }

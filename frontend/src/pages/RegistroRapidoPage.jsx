@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bus, Coffee, Utensils, Pencil, Volume2, VolumeX } from "lucide-react";
+import { Bus, Coffee, Utensils, Pencil, Volume2, VolumeX, Banknote, CreditCard, Landmark, Check } from "lucide-react";
 import { activarAudio, tic, din } from "../utils/sonidos";
 import { obtenerGastadoHoy, obtenerResumenMes, obtenerRealAlInicioMes } from "../api/dashboard";
 import { listarBotonesRapidos } from "../api/botonesRapidos";
@@ -15,13 +15,75 @@ import { hoyISO } from "../utils/fecha";
 
 const NUEVA_CATEGORIA = "__nueva__";
 
-const CUENTAS_BANCO = [
-  { valor: "CUSCATLAN", etiqueta: "Cuenta de ahorro Cuscatlán" },
-  { valor: "MULTIMONEY", etiqueta: "Cuenta de ahorro Multimoney" },
-  { valor: "BAC", etiqueta: "Cuenta de ahorro BAC" },
-  { valor: "AGRICOLA_PRINCIPAL", etiqueta: "Cuenta de ahorro Agrícola (principal)" },
-  { valor: "AGRICOLA_SECUNDARIA", etiqueta: "Cuenta de ahorro Agrícola (secundaria)" },
-];
+// Fila de "¿Cual pagaste?" (gasto fijo o categoria variable) con boton
+// Pagar que la deja marcada como elegida.
+function FilaGasto({ nombre, derecha, seleccionada, esFijo, onPagar }) {
+  return (
+    <div
+      className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${
+        seleccionada ? (esFijo ? "bg-pink-50 border-pink-400" : "bg-purple-50 border-purple-400") : "bg-gray-50 border-transparent"
+      }`}
+    >
+      <span className="flex-1 min-w-0 truncate text-sm font-semibold text-gray-800">{nombre}</span>
+      {derecha && <span className="text-xs text-gray-500 tabular-nums">{derecha}</span>}
+      <button
+        type="button"
+        onClick={onPagar}
+        className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white ${
+          esFijo ? "bg-pink-600" : "bg-purple-600"
+        }`}
+      >
+        {seleccionada ? (
+          <>
+            <Check className="w-3 h-3" /> Elegido
+          </>
+        ) : (
+          "Pagar"
+        )}
+      </button>
+    </div>
+  );
+}
+
+// Cuadrito con forma de tarjeta (efectivo, tarjeta de credito o cuenta):
+// tocarlo ES pagar, no hay boton de registrar aparte.
+function Tarjetita({ clase, nombre, tipo, montoTxt, sub, chip, ancha, deshabilitada, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={deshabilitada}
+      onClick={onClick}
+      className={`relative overflow-hidden rounded-2xl p-3 text-left text-white bg-gradient-to-br shadow-md flex flex-col justify-between active:scale-[0.97] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${clase} ${
+        ancha ? "col-span-2 aspect-[3.2]" : "aspect-[1.7]"
+      }`}
+    >
+      <span className="absolute -right-5 -top-5 w-24 h-24 rounded-full bg-white/15" />
+      <span className="absolute right-4 top-6 w-11 h-11 rounded-full bg-white/10" />
+      {chip && <span className="absolute left-3 top-10 w-6 h-4 rounded bg-gradient-to-br from-yellow-200 to-yellow-600 opacity-90" />}
+      <span className="relative">
+        <span className="block text-xs font-bold leading-tight">{nombre}</span>
+        <span className="block text-[9.5px] font-semibold uppercase tracking-wider opacity-75">{tipo}</span>
+      </span>
+      <span className="relative">
+        <span className="block text-base font-bold tabular-nums">{montoTxt}</span>
+        <span className="block text-[10px] opacity-80">{sub}</span>
+      </span>
+    </button>
+  );
+}
+
+// Colores por banco para las tarjetitas. Las clases van completas en cada
+// string (no armadas por partes) para que Tailwind las encuentre.
+function colorPorBanco(nombre = "") {
+  const n = nombre.toLowerCase();
+  if (n.includes("mastercard")) return "from-indigo-950 to-violet-700";
+  if (n.includes("cuscat")) return "from-indigo-600 to-purple-600";
+  if (n.includes("credisim") || n.includes("siman")) return "from-red-700 to-red-500";
+  if (n.includes("agr")) return "from-emerald-800 to-emerald-500";
+  if (n.includes("bac")) return "from-red-700 to-orange-500";
+  if (n.includes("multimoney")) return "from-cyan-700 to-cyan-500";
+  return "from-slate-700 to-slate-500";
+}
 
 const CONCEPTOS = [
   { valor: "PASAJE_IDA", etiqueta: "Pasaje ida", Icono: Bus },
@@ -429,18 +491,26 @@ export default function RegistroRapidoPage() {
     });
   }
 
-  const [categoriaId, setCategoriaId] = useState(null);
+  // Un solo formulario para gasto variable y fijo (pestana tipoGasto): lo
+  // que cambia es la lista de "cual pagaste", el resto (monto, externo,
+  // con que pagaste) es el mismo.
+  const [tipoGasto, setTipoGasto] = useState("variable");
+  const [categoriaId, setCategoriaId] = useState("");
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState("");
+  const [gastoFijoId, setGastoFijoId] = useState("");
   const [monto, setMonto] = useState("");
   const [aportesExternos, setAportesExternos] = useState([]);
+  const [mostrarExterno, setMostrarExterno] = useState(false);
   const [enviandoForm, setEnviandoForm] = useState(false);
   const [montosLibres, setMontosLibres] = useState({});
   const [tarjetas, setTarjetas] = useState([]);
-  const [fuentePago, setFuentePago] = useState("EFECTIVO");
-  const [tarjetaId, setTarjetaId] = useState("");
-  const [cuenta, setCuenta] = useState("");
+  // null = todavia no eligio con que pago (las tarjetitas no se muestran).
+  const [fuentePago, setFuentePago] = useState(null);
   const [cuentaOrigenId, setCuentaOrigenId] = useState("");
   const [cuentaDestinoId, setCuentaDestinoId] = useState("");
+  // Tarjeta tocada cuyo banco tiene varias cuentas y hay que elegir a cual
+  // apartar antes de confirmar (solo si se puso "Apartar de").
+  const [tarjetaPendienteDestino, setTarjetaPendienteDestino] = useState(null);
   const [todasLasCuentas, setTodasLasCuentas] = useState([]);
   // Cuentas marcadas como "Principal" en Cuentas (tipicamente BAC +
   // Efectivo) — son las que cuentan como plata real disponible, a
@@ -453,15 +523,6 @@ export default function RegistroRapidoPage() {
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [gastosFijosMesAnterior, setGastosFijosMesAnterior] = useState([]);
-  const [gastoFijoId, setGastoFijoId] = useState("");
-  const [montoFijo, setMontoFijo] = useState("");
-  const [aportesExternosFijo, setAportesExternosFijo] = useState([]);
-  const [enviandoFijo, setEnviandoFijo] = useState(false);
-  const [fuentePagoFijo, setFuentePagoFijo] = useState("EFECTIVO");
-  const [tarjetaIdFijo, setTarjetaIdFijo] = useState("");
-  const [cuentaFijo, setCuentaFijo] = useState("");
-  const [cuentaOrigenIdFijo, setCuentaOrigenIdFijo] = useState("");
-  const [cuentaDestinoIdFijo, setCuentaDestinoIdFijo] = useState("");
 
   // Cada seccion se carga por separado (en vez de un solo Promise.all) para
   // que la que llega primero se pueda pintar ya — antes, si una tardaba mas
@@ -681,137 +742,101 @@ export default function RegistroRapidoPage() {
     setMontosLibres((prev) => ({ ...prev, [concepto]: "" }));
   }
 
-  async function handleSubmitGasto(e) {
-    e.preventDefault();
+  const gastosFijosPagados = useMemo(() => gastosFijos.filter((g) => !faltaPagar(g)), [gastosFijos]);
+  const estimadoPorCategoria = useMemo(
+    () => new Map(estimadoVariables.map((e) => [e.categoriaId, e])),
+    [estimadoVariables]
+  );
+  const cuentaEfectivo = useMemo(() => todasLasCuentas.find((c) => c.esEfectivo) || null, [todasLasCuentas]);
+  const nombreSeleccionado = useMemo(() => {
+    if (tipoGasto === "fijo") {
+      const g = gastosFijosDisponibles.find((x) => `${x.gastoFijoConfigId}|${x._anio}|${x._mes}` === gastoFijoId);
+      return g ? g.nombre : "";
+    }
+    if (categoriaId === NUEVA_CATEGORIA) return nuevaCategoriaNombre.trim() || "categoría nueva";
+    const cat = categorias.find((c) => String(c.id) === String(categoriaId));
+    return cat ? cat.nombre : "";
+  }, [tipoGasto, gastosFijosDisponibles, gastoFijoId, categoriaId, nuevaCategoriaNombre, categorias]);
+
+  function limpiarFormulario() {
+    setCategoriaId("");
+    setNuevaCategoriaNombre("");
+    setGastoFijoId("");
+    setMonto("");
+    setAportesExternos([]);
+    setMostrarExterno(false);
+    setFuentePago(null);
+    setCuentaOrigenId("");
+    setCuentaDestinoId("");
+    setTarjetaPendienteDestino(null);
+  }
+
+  function refrescarCuentas() {
+    listarGruposCuenta().then((grupos) => {
+      setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
+    });
+  }
+
+  // Se llama al tocar una tarjetita (efectivo, una tarjeta o una cuenta):
+  // valida lo elegido arriba y registra de una vez, sin boton aparte.
+  async function pagarCon({ fuente, tarjetaId, cuentaBancariaId }) {
     setMensaje("");
+    const esFijo = tipoGasto === "fijo";
     const esNueva = categoriaId === NUEVA_CATEGORIA;
-    if (!categoriaId || (esNueva && !nuevaCategoriaNombre.trim())) {
-      setMensaje(esNueva ? "Escribí el nombre de la categoría nueva" : "Elige una categoría");
+    if (esFijo ? !gastoFijoId : !categoriaId || (esNueva && !nuevaCategoriaNombre.trim())) {
+      setMensaje(
+        esFijo ? "Elegí primero cuál gasto fijo pagaste" : esNueva ? "Escribí el nombre de la categoría nueva" : "Elegí primero cuál pagaste"
+      );
       return;
     }
-    if (fuentePago === "TARJETA" && !tarjetaId) {
-      setMensaje("Elige con qué tarjeta pagaste");
+    if (!monto || Number(monto) <= 0) {
+      setMensaje("Poné el monto");
       return;
-    }
-    if (fuentePago === "CUENTA_BANCO" && !cuenta) {
-      setMensaje("Elige de cuál cuenta pagaste");
-      return;
-    }
-    if (fuentePago === "TARJETA" && cuentaOrigenId) {
-      const tarjetaSeleccionada = tarjetas.find((t) => t.id === Number(tarjetaId));
-      const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSeleccionada?.grupoId);
-      if (cuentasDelBanco.length > 1 && !cuentaDestinoId) {
-        setMensaje("Ese banco tiene varias cuentas — elegí a cuál apartar la plata");
-        return;
-      }
     }
     const sumaExternos = aportesExternos.reduce((s, a) => s + (Number(a) || 0), 0);
     if (sumaExternos > Number(monto)) {
       setMensaje("Lo externo no puede ser más que el monto total");
       return;
     }
-    setEnviandoForm(true);
-    try {
-      const idFinal = esNueva ? (await crearCategoria(nuevaCategoriaNombre.trim())).id : Number(categoriaId);
-      await crearTransaccion({
-        categoriaId: idFinal,
-        monto: Number(monto),
-        fecha: fechaSeleccionada,
-        fuente: fuentePago,
-        tarjetaId: fuentePago === "TARJETA" ? Number(tarjetaId) : undefined,
-        cuenta: fuentePago === "CUENTA_BANCO" ? cuenta : undefined,
-        aportesExternos: aportesExternos.filter((a) => a !== "").map(Number),
-        cuentaOrigenId: fuentePago === "TARJETA" && cuentaOrigenId ? Number(cuentaOrigenId) : undefined,
-        cuentaDestinoId: fuentePago === "TARJETA" && cuentaDestinoId ? Number(cuentaDestinoId) : undefined,
-      });
-      setMonto("");
-      setAportesExternos([]);
-      setCategoriaId("");
-      setNuevaCategoriaNombre("");
-      setFuentePago("EFECTIVO");
-      setTarjetaId("");
-      setCuenta("");
-      setCuentaOrigenId("");
-      setCuentaDestinoId("");
-      cargarTodo();
-      if (fuentePago === "TARJETA") {
-        cargarPagosPendientesTarjetas();
-        listarGruposCuenta().then((grupos) => {
-          setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
-        });
-      }
-      const totales = await obtenerGastadoHoy(fechaSeleccionada);
-      setGastadoDia(totales.totalHoy);
-      setMensaje("Gasto registrado");
-    } catch (err) {
-      setMensaje(err.response?.data?.error || "No se pudo registrar el gasto");
-    } finally {
-      setEnviandoForm(false);
-    }
-  }
-
-  async function handleSubmitGastoFijo(e) {
-    e.preventDefault();
-    setMensaje("");
-    if (!gastoFijoId || !montoFijo) {
-      setMensaje("Elige un gasto fijo y su monto");
-      return;
-    }
-    if (fuentePagoFijo === "TARJETA" && !tarjetaIdFijo) {
-      setMensaje("Elige con qué tarjeta pagaste");
-      return;
-    }
-    if (fuentePagoFijo === "CUENTA_BANCO" && !cuentaFijo) {
-      setMensaje("Elige de cuál cuenta pagaste");
-      return;
-    }
-    if (fuentePagoFijo === "TARJETA" && cuentaOrigenIdFijo) {
-      const tarjetaSeleccionada = tarjetas.find((t) => t.id === Number(tarjetaIdFijo));
-      const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSeleccionada?.grupoId);
-      if (cuentasDelBanco.length > 1 && !cuentaDestinoIdFijo) {
-        setMensaje("Ese banco tiene varias cuentas — elegí a cuál apartar la plata");
+    if (fuente === "TARJETA" && cuentaOrigenId) {
+      const tarjetaSel = tarjetas.find((t) => t.id === tarjetaId);
+      const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSel?.grupoId);
+      if (cuentasDelBanco.length > 1 && !cuentaDestinoId) {
+        setTarjetaPendienteDestino(tarjetaId);
         return;
       }
     }
-    const sumaExternosFijo = aportesExternosFijo.reduce((s, a) => s + (Number(a) || 0), 0);
-    if (sumaExternosFijo > Number(montoFijo)) {
-      setMensaje("Lo externo no puede ser más que el monto total");
-      return;
-    }
-    setEnviandoFijo(true);
+
+    setEnviandoForm(true);
     try {
-      const [gastoFijoConfigId, anio, mes] = gastoFijoId.split("|").map(Number);
-      await guardarGastoFijoMensual({
-        gastoFijoConfigId,
-        anio,
-        mes,
-        montoReal: Number(montoFijo),
-        fuente: fuentePagoFijo,
-        tarjetaId: fuentePagoFijo === "TARJETA" ? Number(tarjetaIdFijo) : undefined,
-        cuenta: fuentePagoFijo === "CUENTA_BANCO" ? cuentaFijo : undefined,
-        aportesExternos: aportesExternosFijo.filter((a) => a !== "").map(Number),
-        cuentaOrigenId: fuentePagoFijo === "TARJETA" && cuentaOrigenIdFijo ? Number(cuentaOrigenIdFijo) : undefined,
-        cuentaDestinoId: fuentePagoFijo === "TARJETA" && cuentaDestinoIdFijo ? Number(cuentaDestinoIdFijo) : undefined,
-      });
-      setGastoFijoId("");
-      setMontoFijo("");
-      setAportesExternosFijo([]);
-      setFuentePagoFijo("EFECTIVO");
-      setTarjetaIdFijo("");
-      setCuentaFijo("");
-      setCuentaOrigenIdFijo("");
-      setCuentaDestinoIdFijo("");
-      if (fuentePagoFijo === "TARJETA") {
-        cargarPagosPendientesTarjetas();
-        listarGruposCuenta().then((grupos) => {
-          setTodasLasCuentas(grupos.flatMap((g) => g.cuentas.map((c) => ({ ...c, grupoId: g.id, grupoNombre: g.nombre }))));
-        });
+      const comun = {
+        fuente,
+        tarjetaId: fuente === "TARJETA" ? tarjetaId : undefined,
+        cuentaBancariaId: fuente === "CUENTA_BANCO" ? cuentaBancariaId : undefined,
+        aportesExternos: aportesExternos.filter((a) => a !== "").map(Number),
+        cuentaOrigenId: fuente === "TARJETA" && cuentaOrigenId ? Number(cuentaOrigenId) : undefined,
+        cuentaDestinoId: fuente === "TARJETA" && cuentaDestinoId ? Number(cuentaDestinoId) : undefined,
+      };
+      if (esFijo) {
+        const [gastoFijoConfigId, anio, mes] = gastoFijoId.split("|").map(Number);
+        await guardarGastoFijoMensual({ gastoFijoConfigId, anio, mes, montoReal: Number(monto), ...comun });
+        setMensaje("Gasto fijo marcado como pagado");
+      } else {
+        const idFinal = esNueva ? (await crearCategoria(nuevaCategoriaNombre.trim())).id : Number(categoriaId);
+        await crearTransaccion({ categoriaId: idFinal, monto: Number(monto), fecha: fechaSeleccionada, ...comun });
+        setMensaje("Gasto registrado");
       }
-      setMensaje("Gasto fijo marcado como pagado");
+      limpiarFormulario();
+      cargarTodo();
+      if (fuente === "TARJETA") {
+        cargarPagosPendientesTarjetas();
+        cargarPendienteApartar();
+      }
+      refrescarCuentas();
     } catch (err) {
-      setMensaje(err.response?.data?.error || "No se pudo registrar el gasto fijo");
+      setMensaje(err.response?.data?.error || "No se pudo registrar");
     } finally {
-      setEnviandoFijo(false);
+      setEnviandoForm(false);
     }
   }
 
@@ -1079,257 +1104,303 @@ export default function RegistroRapidoPage() {
           })()}
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <form onSubmit={handleSubmitGasto} className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Gasto variable</h2>
-
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">¿Cuál pagaste?</label>
-            <select
-              value={categoriaId ?? ""}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+          {[
+            ["variable", "Variable"],
+            ["fijo", "Fijo"],
+          ].map(([v, et]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => {
+                setTipoGasto(v);
+                limpiarFormulario();
+              }}
+              className={`py-2 rounded-lg text-sm font-bold transition-colors ${
+                tipoGasto === v ? (v === "fijo" ? "bg-white text-pink-600 shadow-sm" : "bg-white text-purple-700 shadow-sm") : "text-gray-500"
+              }`}
             >
-              <option value="">-- Elegir categoría --</option>
-              {categoriasDisponibles.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nombre}
-                </option>
-              ))}
-              <option value={NUEVA_CATEGORIA}>+ Imprevisto (categoría nueva)</option>
-            </select>
-            {categoriaId === NUEVA_CATEGORIA && (
-              <input
-                type="text"
-                placeholder="Nombre de la categoría (ej. Emergencia carro)"
-                value={nuevaCategoriaNombre}
-                onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
-              />
-            )}
-          </div>
+              {et}
+            </button>
+          ))}
+        </div>
 
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Monto</label>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+            {tipoGasto === "fijo" ? "Gastos fijos" : "Categorías"}
+          </h3>
+          <span className="text-[11px] text-gray-400">
+            {tipoGasto === "fijo"
+              ? `${gastosFijosDisponibles.length} por pagar · ${gastosFijosPagados.length} pagados`
+              : `${categoriasDisponibles.length} este mes`}
+          </span>
+        </div>
+        <div className="flex flex-col gap-1.5 mb-5">
+          {tipoGasto === "fijo" ? (
+            <>
+              {gastosFijosDisponibles.map((g) => {
+                const key = `${g.gastoFijoConfigId}|${g._anio}|${g._mes}`;
+                return (
+                  <FilaGasto
+                    key={key}
+                    nombre={`${g.nombre}${g._mesAnterior ? " — mes anterior" : ""}`}
+                    derecha={`$${Number(g.montoEstimado).toFixed(2)}`}
+                    seleccionada={gastoFijoId === key}
+                    esFijo
+                    onPagar={() => {
+                      setGastoFijoId(key);
+                      setMonto(Number(g.montoEstimado).toFixed(2));
+                    }}
+                  />
+                );
+              })}
+              {gastosFijosPagados.map((g) => (
+                <div key={g.gastoFijoConfigId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 opacity-50">
+                  <span className="flex-1 min-w-0 truncate text-sm font-semibold text-gray-700">{g.nombre}</span>
+                  <span className="text-xs text-gray-500 tabular-nums">${Number(g.montoReal).toFixed(2)}</span>
+                  <span className="w-6 h-6 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              ))}
+              {gastosFijosDisponibles.length === 0 && gastosFijos.length === 0 && (
+                <p className="text-xs text-gray-400">No hay gastos fijos vigentes este mes. Agregalos en Presupuesto.</p>
+              )}
+            </>
+          ) : (
+            <>
+              {categoriasDisponibles.map((cat) => {
+                const info = estimadoPorCategoria.get(cat.id);
+                return (
+                  <FilaGasto
+                    key={cat.id}
+                    nombre={cat.nombre}
+                    derecha={info?.montoEstimado != null ? `hasta $${Number(info.montoEstimado).toFixed(2)}` : ""}
+                    seleccionada={String(categoriaId) === String(cat.id)}
+                    onPagar={() => {
+                      setCategoriaId(String(cat.id));
+                      setNuevaCategoriaNombre("");
+                    }}
+                  />
+                );
+              })}
+              {categoriaId === NUEVA_CATEGORIA ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-purple-400 bg-purple-50">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Nombre de la categoría nueva"
+                    value={nuevaCategoriaNombre}
+                    onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoriaId("");
+                      setNuevaCategoriaNombre("");
+                    }}
+                    className="text-gray-400 text-sm"
+                    title="Cancelar"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCategoriaId(NUEVA_CATEGORIA)}
+                  className="text-left px-3 py-2.5 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500"
+                >
+                  + Imprevisto (categoría nueva)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-[11.5px] font-semibold text-gray-500 mb-1.5">
+            {tipoGasto === "fijo" ? "Monto pagado" : "Monto"}
+            {nombreSeleccionado && (
+              <>
+                {" · "}
+                <b className="text-gray-800">{nombreSeleccionado}</b>
+              </>
+            )}
+          </label>
+          <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl px-3.5">
+            <span className="text-xl font-bold text-gray-400">$</span>
             <input
               type="number"
               step="0.01"
               min="0.01"
-              required
+              inputMode="decimal"
+              placeholder="0.00"
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              className="flex-1 min-w-0 bg-transparent text-2xl font-bold py-2.5 outline-none tabular-nums"
             />
           </div>
-
-          <AportesExternos aportes={aportesExternos} onChange={setAportesExternos} />
-
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
-            <select
-              value={fuentePago}
-              onChange={(e) => setFuentePago(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+          {!mostrarExterno ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarExterno(true);
+                setAportesExternos([""]);
+              }}
+              className="mt-2 text-xs font-bold text-purple-600"
             >
-              <option value="EFECTIVO">Efectivo</option>
-              <option value="TARJETA">Tarjeta de crédito</option>
-              <option value="CUENTA_BANCO">Cuenta de banco</option>
-            </select>
-            {fuentePago === "TARJETA" && (
-              <select
-                value={tarjetaId}
-                onChange={(e) => setTarjetaId(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
+              + Alguien más puso plata
+            </button>
+          ) : (
+            <div className="mt-2">
+              <AportesExternos aportes={aportesExternos} onChange={setAportesExternos} />
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-[11.5px] font-semibold text-gray-500 mb-1.5">Pagaste con</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ["EFECTIVO", "Efectivo", Banknote],
+              ["TARJETA", "Tarjeta", CreditCard],
+              ["CUENTA_BANCO", "Cuenta", Landmark],
+            ].map(([k, et, Icono]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  setFuentePago(fuentePago === k ? null : k);
+                  setTarjetaPendienteDestino(null);
+                }}
+                className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border text-[11.5px] font-semibold ${
+                  fuentePago === k ? "bg-purple-50 border-purple-500 text-purple-800" : "border-gray-200 text-gray-500"
+                }`}
               >
-                <option value="">-- Elegir tarjeta --</option>
-                {tarjetas.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre}
+                <Icono className="w-5 h-5" />
+                {et}
+              </button>
+            ))}
+          </div>
+
+          {fuentePago === "TARJETA" && (
+            <div className="mt-2.5 flex items-center gap-2 text-xs text-gray-500">
+              <span className="shrink-0">Apartar de</span>
+              <select
+                value={cuentaOrigenId}
+                onChange={(e) => {
+                  setCuentaOrigenId(e.target.value);
+                  setCuentaDestinoId("");
+                  setTarjetaPendienteDestino(null);
+                }}
+                className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+              >
+                <option value="">nada (opcional)</option>
+                {todasLasCuentas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.esEfectivo ? "💵 " : ""}
+                    {c.nombre} ({c.grupoNombre}) · ${Number(c.saldoActual).toFixed(2)}
                   </option>
                 ))}
               </select>
-            )}
-            {fuentePago === "TARJETA" && tarjetaId && (() => {
-              const tarjetaSel = tarjetas.find((t) => t.id === Number(tarjetaId));
+            </div>
+          )}
+
+          {fuentePago && (
+            <div className="grid grid-cols-2 gap-2.5 mt-3">
+              {fuentePago === "EFECTIVO" && (
+                <Tarjetita
+                  ancha
+                  clase="from-green-600 to-teal-700"
+                  nombre="Efectivo"
+                  tipo={cuentaEfectivo ? "Billetera" : "Sin billetera configurada"}
+                  montoTxt={cuentaEfectivo ? `$${Number(cuentaEfectivo.saldoActual).toFixed(2)}` : ""}
+                  sub={cuentaEfectivo ? "disponible ahora" : "se registra igual"}
+                  deshabilitada={enviandoForm || (cuentaEfectivo && Number(monto) > Number(cuentaEfectivo.saldoActual))}
+                  onClick={() => pagarCon({ fuente: "EFECTIVO" })}
+                />
+              )}
+              {fuentePago === "TARJETA" &&
+                tarjetas.map((t) => {
+                  const disponible = Number(t.info?.disponible ?? Number(t.limite) - Number(t.saldoActual));
+                  return (
+                    <Tarjetita
+                      key={t.id}
+                      chip
+                      clase={colorPorBanco(t.nombre)}
+                      nombre={t.nombre}
+                      tipo="Crédito"
+                      montoTxt={`$${Number(t.saldoActual).toFixed(2)}`}
+                      sub={`disponible $${disponible.toFixed(2)}`}
+                      deshabilitada={enviandoForm || Number(monto) > disponible}
+                      onClick={() => pagarCon({ fuente: "TARJETA", tarjetaId: t.id })}
+                    />
+                  );
+                })}
+              {fuentePago === "CUENTA_BANCO" &&
+                todasLasCuentas
+                  .filter((c) => !c.esEfectivo)
+                  .map((c) => (
+                    <Tarjetita
+                      key={c.id}
+                      clase={colorPorBanco(`${c.grupoNombre} ${c.nombre}`)}
+                      nombre={c.nombre}
+                      tipo={c.grupoNombre}
+                      montoTxt={`$${Number(c.saldoActual).toFixed(2)}`}
+                      sub="saldo actual"
+                      deshabilitada={enviandoForm || Number(monto) > Number(c.saldoActual)}
+                      onClick={() => pagarCon({ fuente: "CUENTA_BANCO", cuentaBancariaId: c.id })}
+                    />
+                  ))}
+            </div>
+          )}
+
+          {tarjetaPendienteDestino &&
+            (() => {
+              const tarjetaSel = tarjetas.find((t) => t.id === tarjetaPendienteDestino);
               const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSel?.grupoId);
               return (
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                  <span>¿A cuál cuenta de {tarjetaSel?.nombre.split(" ")[0]} apartar?</span>
                   <select
-                    value={cuentaOrigenId}
-                    onChange={(e) => setCuentaOrigenId(e.target.value)}
-                    title="De qué cuenta apartar la plata para pagar esta tarjeta (opcional)"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                    value={cuentaDestinoId}
+                    onChange={(e) => setCuentaDestinoId(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
                   >
-                    <option value="">Apartar de... (opcional)</option>
-                    {todasLasCuentas.map((c) => (
+                    <option value="">-- Elegir --</option>
+                    {cuentasDelBanco.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
+                        {c.nombre}
                       </option>
                     ))}
                   </select>
-                  {cuentaOrigenId && cuentasDelBanco.length > 1 && (
-                    <select
-                      value={cuentaDestinoId}
-                      onChange={(e) => setCuentaDestinoId(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
-                    >
-                      <option value="">-- ¿A cuál cuenta de {tarjetaSel?.nombre.split(" ")[0]}? --</option>
-                      {cuentasDelBanco.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              );
-            })()}
-            {fuentePago === "CUENTA_BANCO" && (
-              <select
-                value={cuenta}
-                onChange={(e) => setCuenta(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
-              >
-                <option value="">-- Elegir cuenta --</option>
-                {CUENTAS_BANCO.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.etiqueta}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={enviandoForm}
-            className="w-full bg-purple-600 text-white rounded py-2 font-medium hover:bg-purple-700 disabled:opacity-50"
-          >
-            {enviandoForm ? "Registrando..." : "Marcar como pagado"}
-          </button>
-        </form>
-
-        <form onSubmit={handleSubmitGastoFijo} className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Gasto fijo (ya pagado)</h2>
-
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">¿Cuál pagaste?</label>
-            <select
-              value={gastoFijoId}
-              onChange={(e) => setGastoFijoId(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              <option value="">-- Elegir gasto fijo --</option>
-              {gastosFijosDisponibles.map((g) => (
-                <option key={`${g.gastoFijoConfigId}-${g._anio}-${g._mes}`} value={`${g.gastoFijoConfigId}|${g._anio}|${g._mes}`}>
-                  {g.nombre} (est. ${Number(g.montoEstimado).toFixed(2)}){g._mesAnterior ? " — mes anterior" : ""}
-                </option>
-              ))}
-            </select>
-            {gastosFijosDisponibles.length === 0 && gastosFijos.length === 0 && (
-              <p className="text-xs text-gray-400 mt-1">
-                No hay gastos fijos vigentes este mes. Agregalos en Presupuesto.
-              </p>
-            )}
-            {gastosFijosDisponibles.length === 0 && gastosFijos.length > 0 && (
-              <p className="text-xs text-gray-400 mt-1">Ya pagaste todos los gastos fijos de este mes.</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Monto pagado</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={montoFijo}
-              onChange={(e) => setMontoFijo(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            />
-          </div>
-
-          <AportesExternos aportes={aportesExternosFijo} onChange={setAportesExternosFijo} />
-
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Pagaste con</label>
-            <select
-              value={fuentePagoFijo}
-              onChange={(e) => setFuentePagoFijo(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              <option value="EFECTIVO">Efectivo</option>
-              <option value="TARJETA">Tarjeta de crédito</option>
-              <option value="CUENTA_BANCO">Cuenta de banco</option>
-            </select>
-            {fuentePagoFijo === "TARJETA" && (
-              <select
-                value={tarjetaIdFijo}
-                onChange={(e) => setTarjetaIdFijo(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
-              >
-                <option value="">-- Elegir tarjeta --</option>
-                {tarjetas.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-            {fuentePagoFijo === "TARJETA" && tarjetaIdFijo && (() => {
-              const tarjetaSel = tarjetas.find((t) => t.id === Number(tarjetaIdFijo));
-              const cuentasDelBanco = todasLasCuentas.filter((c) => c.grupoId === tarjetaSel?.grupoId);
-              return (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <select
-                    value={cuentaOrigenIdFijo}
-                    onChange={(e) => setCuentaOrigenIdFijo(e.target.value)}
-                    title="De qué cuenta apartar la plata para pagar esta tarjeta (opcional)"
-                    className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
+                  <button
+                    type="button"
+                    disabled={!cuentaDestinoId || enviandoForm}
+                    onClick={() => pagarCon({ fuente: "TARJETA", tarjetaId: tarjetaPendienteDestino })}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 text-white font-semibold disabled:opacity-50"
                   >
-                    <option value="">Apartar de... (opcional)</option>
-                    {todasLasCuentas.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.esEfectivo ? "💵 " : ""}{c.nombre} ({c.grupoNombre})
-                      </option>
-                    ))}
-                  </select>
-                  {cuentaOrigenIdFijo && cuentasDelBanco.length > 1 && (
-                    <select
-                      value={cuentaDestinoIdFijo}
-                      onChange={(e) => setCuentaDestinoIdFijo(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-600"
-                    >
-                      <option value="">-- ¿A cuál cuenta de {tarjetaSel?.nombre.split(" ")[0]}? --</option>
-                      {cuentasDelBanco.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  )}
+                    Confirmar
+                  </button>
                 </div>
               );
             })()}
-            {fuentePagoFijo === "CUENTA_BANCO" && (
-              <select
-                value={cuentaFijo}
-                onChange={(e) => setCuentaFijo(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mt-2"
-              >
-                <option value="">-- Elegir cuenta --</option>
-                {CUENTAS_BANCO.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.etiqueta}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
 
-          <button
-            type="submit"
-            disabled={enviandoFijo}
-            className="w-full bg-pink-600 text-white rounded py-2 font-medium hover:bg-pink-700 disabled:opacity-50"
-          >
-            {enviandoFijo ? "Registrando..." : "Marcar como pagado"}
-          </button>
-        </form>
+          {fuentePago && (
+            <p className="text-[11.5px] text-gray-400 text-center mt-2.5">
+              {enviandoForm
+                ? "Registrando..."
+                : fuentePago === "EFECTIVO"
+                  ? "Tocá para pagar con efectivo"
+                  : fuentePago === "TARJETA"
+                    ? "Tocá la tarjeta con la que pagaste"
+                    : "Tocá la cuenta de la que salió"}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

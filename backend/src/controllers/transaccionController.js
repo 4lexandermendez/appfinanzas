@@ -64,7 +64,7 @@ async function listar(req, res) {
 }
 
 async function crear(req, res) {
-  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
+  const { categoriaId, monto, fecha, notas, fuente, tarjetaId, cuenta, cuentaBancariaId, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
 
   if (!categoriaId || monto === undefined || !fecha) {
     return res.status(400).json({ error: "categoriaId, monto y fecha son requeridos" });
@@ -88,8 +88,10 @@ async function crear(req, res) {
   if (fuenteFinal === "TARJETA" && !tarjetaId) {
     return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
   }
-  if (fuenteFinal === "CUENTA_BANCO" && !CUENTAS_VALIDAS.includes(cuenta)) {
-    return res.status(400).json({ error: `cuenta debe ser una de: ${CUENTAS_VALIDAS.join(", ")}` });
+  // CUENTA_BANCO acepta o bien una cuenta real (cuentaBancariaId, que si
+  // descuenta saldo) o la etiqueta vieja (enum cuenta, solo informativa).
+  if (fuenteFinal === "CUENTA_BANCO" && !cuentaBancariaId && !CUENTAS_VALIDAS.includes(cuenta)) {
+    return res.status(400).json({ error: "Indicá de cuál cuenta pagaste (cuentaBancariaId)" });
   }
 
   const categoria = await validarCategoria(req.usuarioId, Number(categoriaId));
@@ -103,7 +105,18 @@ async function crear(req, res) {
   const anio = fechaParsed.getUTCFullYear();
   const mes = fechaParsed.getUTCMonth() + 1;
   const presupuesto = await obtenerOCrearPresupuesto(req.usuarioId, anio, mes);
-  const cuentaEfectivo = fuenteFinal === "EFECTIVO" ? await obtenerCuentaEfectivo(req.usuarioId) : null;
+  // Cuenta de la que sale la plata en el momento: la billetera si es
+  // EFECTIVO, o la cuenta bancaria elegida si es CUENTA_BANCO con id real.
+  let cuentaDebito = null;
+  if (fuenteFinal === "EFECTIVO") {
+    cuentaDebito = await obtenerCuentaEfectivo(req.usuarioId);
+  } else if (fuenteFinal === "CUENTA_BANCO" && cuentaBancariaId) {
+    cuentaDebito = await validarCuentaPropia(req.usuarioId, Number(cuentaBancariaId));
+    if (!cuentaDebito) return res.status(404).json({ error: "Cuenta no encontrada" });
+    if (montoNum > Number(cuentaDebito.saldoActual)) {
+      return res.status(400).json({ error: "El monto supera el saldo disponible en esa cuenta" });
+    }
+  }
 
   // Apartar plata al momento de cargar a la tarjeta (opcional): si se manda
   // cuentaOrigenId, se transfiere el monto completo de ahi a la cuenta del
@@ -177,10 +190,10 @@ async function crear(req, res) {
           vinculo: { transaccionId: creada.id },
         });
       }
-    } else if (fuenteFinal === "EFECTIVO" && cuentaEfectivo) {
+    } else if (cuentaDebito) {
       await tx.movimientoCuenta.create({
         data: {
-          cuentaId: cuentaEfectivo.id,
+          cuentaId: cuentaDebito.id,
           monto: -montoNum,
           fecha: fechaParsed,
           descripcion: creada.categoria.nombre,
@@ -188,7 +201,7 @@ async function crear(req, res) {
         },
       });
       await tx.cuentaBancaria.update({
-        where: { id: cuentaEfectivo.id },
+        where: { id: cuentaDebito.id },
         data: { saldoActual: { decrement: montoNum } },
       });
     }

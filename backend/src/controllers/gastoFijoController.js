@@ -159,7 +159,7 @@ function parsearAportesExternos(aportesExternos, montoTotal) {
 // se pasa de tarjeta a efectivo, el movimiento se borra y se le devuelve el
 // monto a la tarjeta.
 async function guardarMensual(req, res) {
-  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
+  const { gastoFijoConfigId, anio, mes, montoEstimado, montoReal, fuente, tarjetaId, cuenta, cuentaBancariaId, aportesExternos, cuentaOrigenId, cuentaDestinoId } = req.body;
 
   if (!gastoFijoConfigId || !anio || !mes) {
     return res.status(400).json({ error: "gastoFijoConfigId, anio y mes son requeridos" });
@@ -185,8 +185,8 @@ async function guardarMensual(req, res) {
   if (fuente === "TARJETA" && !tarjetaId) {
     return res.status(400).json({ error: "tarjetaId es requerido cuando fuente es TARJETA" });
   }
-  if (fuente === "CUENTA_BANCO" && !CUENTAS_VALIDAS.includes(cuenta)) {
-    return res.status(400).json({ error: `cuenta debe ser una de: ${CUENTAS_VALIDAS.join(", ")}` });
+  if (fuente === "CUENTA_BANCO" && !cuentaBancariaId && !CUENTAS_VALIDAS.includes(cuenta)) {
+    return res.status(400).json({ error: "Indicá de cuál cuenta pagaste (cuentaBancariaId)" });
   }
 
   const config = await prisma.gastoFijoConfig.findUnique({ where: { id: Number(gastoFijoConfigId) } });
@@ -207,6 +207,13 @@ async function guardarMensual(req, res) {
     include: { movimientoTarjeta: true, movimientoCuenta: true, aportesExternos: true },
   });
   const cuentaEfectivo = await obtenerCuentaEfectivo(req.usuarioId);
+  // Cuenta bancaria real elegida (CUENTA_BANCO con id): descuenta saldo
+  // igual que la billetera de efectivo.
+  let cuentaBanco = null;
+  if (cuentaBancariaId) {
+    cuentaBanco = await validarCuentaPropia(req.usuarioId, Number(cuentaBancariaId));
+    if (!cuentaBanco) return res.status(404).json({ error: "Cuenta no encontrada" });
+  }
 
   const montoRealFinal = realNum ?? Number(existente?.montoReal || 0);
   const aportesNum = parsearAportesExternos(aportesExternos, montoRealFinal);
@@ -316,25 +323,37 @@ async function guardarMensual(req, res) {
     // "cambio de destino" posible (solo existe una billetera por usuario),
     // así que solo hace falta crear/ajustar-por-delta/borrar el vínculo.
     const movimientoCuentaPrevio = existente?.movimientoCuenta;
-    if (guardado.fuente === "EFECTIVO" && montoFinal > 0 && cuentaEfectivo) {
+    // De donde sale la plata: billetera (EFECTIVO) o cuenta bancaria real
+    // (CUENTA_BANCO con cuentaBancariaId). Si cambia de cuenta respecto al
+    // vinculo previo, se revierte el viejo y se crea uno nuevo.
+    const cuentaDebito =
+      guardado.fuente === "EFECTIVO" ? cuentaEfectivo : guardado.fuente === "CUENTA_BANCO" ? cuentaBanco : null;
+    if (cuentaDebito && montoFinal > 0) {
       const montoVinculado = -montoFinal;
-      if (movimientoCuentaPrevio) {
+      if (movimientoCuentaPrevio && movimientoCuentaPrevio.cuentaId === cuentaDebito.id) {
         const delta = montoVinculado - Number(movimientoCuentaPrevio.monto);
         if (delta !== 0) {
           await tx.movimientoCuenta.update({ where: { id: movimientoCuentaPrevio.id }, data: { monto: montoVinculado } });
-          await tx.cuentaBancaria.update({ where: { id: cuentaEfectivo.id }, data: { saldoActual: { increment: delta } } });
+          await tx.cuentaBancaria.update({ where: { id: cuentaDebito.id }, data: { saldoActual: { increment: delta } } });
         }
       } else {
+        if (movimientoCuentaPrevio) {
+          await tx.movimientoCuenta.delete({ where: { id: movimientoCuentaPrevio.id } });
+          await tx.cuentaBancaria.update({
+            where: { id: movimientoCuentaPrevio.cuentaId },
+            data: { saldoActual: { decrement: Number(movimientoCuentaPrevio.monto) } },
+          });
+        }
         await tx.movimientoCuenta.create({
           data: {
-            cuentaId: cuentaEfectivo.id,
+            cuentaId: cuentaDebito.id,
             monto: montoVinculado,
             fecha: hoyElSalvador(),
             descripcion: config.nombre,
             gastoFijoMensualId: guardado.id,
           },
         });
-        await tx.cuentaBancaria.update({ where: { id: cuentaEfectivo.id }, data: { saldoActual: { decrement: montoFinal } } });
+        await tx.cuentaBancaria.update({ where: { id: cuentaDebito.id }, data: { saldoActual: { decrement: montoFinal } } });
       }
     } else if (movimientoCuentaPrevio) {
       await tx.movimientoCuenta.delete({ where: { id: movimientoCuentaPrevio.id } });
